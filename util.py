@@ -23,14 +23,21 @@ def boundary_test(coordinate):
 
 
 def get_state_properties_b(start_state, start_state_properties, movements):
-    dirs = []
-    vec = [0, 1]
-    for l in vec:
-        for i in vec:
-            for j in vec:
-                if l == 0 and i == 0 and j == 0:
-                    continue
-                dirs.append([l, i, j])
+    dirs = [
+        [0, 0, 1],
+        [0, 1, 0],
+        [1, 0, 0],
+        [0, 1, 1],
+        [1, 0, 1],
+        [1, 1, 0],
+        [0, 1, -1],
+        [1, 0, -1],
+        [1, -1, 0],
+        [1, 1, 1],
+        [1, 1, -1],
+        [1, -1, 1],
+        [-1, 1, 1]
+    ]
 
     temp_state = start_state
     temp_properties = start_state_properties

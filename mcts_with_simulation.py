@@ -89,7 +89,7 @@ def get_state_properties_b(start_state, start_state_properties, movements):
                     break
                 cnt += 1
             while cnt >= 4:
-                print(cnt)
+                #print(cnt)
                 temp_properties[c + 1] += 1
                 temp_properties[c - 1] += \
                     100 / (temp_properties[2] + temp_properties[3])
@@ -99,7 +99,7 @@ def get_state_properties_b(start_state, start_state_properties, movements):
 
 
 class NODE:
-    def __init__(self, board: ArrayLike, hands: int, properties):
+    def __init__(self, board: ArrayLike, hands: int, move, properties):
         """
 
         :param board: Board 6*6*6
@@ -108,6 +108,7 @@ class NODE:
         """
         self.board = board
         self.hands = hands
+        self.move = move
         self.visiting_count = 0
         self.value_sum = 0
         self.is_leaf = True
@@ -135,6 +136,11 @@ class NODE:
         # call the function which will return the legal moves
         # do the legal moves and add children to the leaf node
         self.is_leaf = False
+        '''temp_board = np.zeros([6, 6, 6])
+        for i in range(6):
+            for j in range(6):
+                for i in range(6):
+                    temp_board[i][j][k] = self.board[i][j][k]'''
         temp_board = deepcopy(self.board)
         legal_moves = get_next_possible_move(temp_board)
         if self.hands % 2 == 0:
@@ -142,7 +148,15 @@ class NODE:
         else:
             color = 2  # white
         for one_move in legal_moves:
+            '''temp_board = np.zeros([6, 6, 6])
+            for i in range(6):
+                for j in range(6):
+                    for i in range(6):
+                        temp_board[i][j][k] = self.board[i][j][k]'''
             temp_board = deepcopy(self.board)
+            '''temp_properties = [0, 0, 0, 0]
+            for i in range(4):
+                temp_properties[i] = self.properties[i]'''
             temp_properties = deepcopy(self.properties)
             temp_move = [0, 0, 0, 0]
             for i in range(3):
@@ -151,14 +165,24 @@ class NODE:
             movements = [temp_move]
             new_properties = get_state_properties_b(temp_board, temp_properties, movements)
             temp_board[one_move[0]][one_move[1]][one_move[2]] = color
-            new_child = NODE(temp_board, self.hands + 1, new_properties)
+            new_child = NODE(temp_board, self.hands + 1, one_move, new_properties)
             self.children.append(new_child)
             new_child.parent = self
 
     def simulate(self):
+        '''temp_board = np.zeros([6, 6, 6])
+        start_board = np.zeros([6, 6, 6])
+        for i in range(6):
+            for j in range(6):
+                for i in range(6):
+                    temp_board[i][j][k] = self.board[i][j][k]
+                    start_board[i][j][k] = self.board[i][j][k]'''
         temp_board = deepcopy(self.board)
         start_board = deepcopy(self.board)
 
+        '''temp_properties = [0, 0, 0, 0]
+        for i in range(4):
+            temp_properties[i] = self.properties[i]'''
         temp_properties = deepcopy(self.properties)
 
         movements = []
@@ -197,14 +221,24 @@ class NODE:
         n += 1
         temp_node = self
         flag = True
-        while not temp_node.is_root:
-            if flag:
-                temp_node.value_sum += reward
-                flag = False
-            else:
-                flag = True
-            temp_node.visiting_count += 1
-            temp_node = temp_node.parent
+        if reward == 1:
+            while not temp_node.is_root:
+                if flag:
+                    temp_node.value_sum += reward
+                    flag = False
+                else:
+                    flag = True
+                temp_node.visiting_count += 1
+                temp_node = temp_node.parent
+        else:
+            while not temp_node.is_root:
+                if flag:
+                    flag = False
+                else:
+                    temp_node.value_sum += 1
+                    flag = True
+                temp_node.visiting_count += 1
+                temp_node = temp_node.parent
 
     def play(self):
         pass
@@ -212,10 +246,8 @@ class NODE:
 
 def mcts(root):
     root.is_root = True
-    count = 0
     start = time.time()
     while True:
-        count += 1
         temp_node = root.select()
         temp_node.expand()
         reward = temp_node.simulate()
@@ -234,7 +266,7 @@ def mcts(root):
             value = temp_value
             temp_move = i.move
 
-    print(count)
+    print(n)
     return temp_move
 
 
@@ -254,6 +286,6 @@ if __name__ == '__main__':
         np1[k][5][4] = -1
         np1[k][5][5] = -1
     start_properties = [0, 0, 0, 0]
-    a = NODE(np1, 0, start_properties)
+    a = NODE(np1, 0, None, start_properties)
     move = mcts(a)
     print(move)

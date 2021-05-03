@@ -468,7 +468,7 @@ class NN3DConnect4(nn.Module, ABC):
         return p, v
 
 
-if __name__ == '__main__':
+def get_init_node():
     np1 = np.zeros([6, 6, 6])
     for k in range(0, 6):
         np1[k][0][0] = -1
@@ -484,26 +484,32 @@ if __name__ == '__main__':
         np1[k][5][4] = -1
         np1[k][5][5] = -1
     start_properties = [0, 0, 0, 0]
-    a = NODE(np1, 0, None, start_properties)
-    tensors = a.observation_tensors()
-    # move = mcts(a)
-    # print(move)
+    return NODE(np1, 0, None, start_properties)
 
-    #########
-    model = NN3DConnect4(features_3d_in_channels=4,
-                         features_scalar_in_channels=4,
-                         channels=16,
-                         blocks=4)
-    model.eval()
-    siz = 1
-    for x in (4, 6, 6, 6):
-        siz *= x
-    t = torch.arange(float(siz)).reshape((1,) + (4, 6, 6, 6))
-    print(t.size())
 
-    st = time.time()
-    n = 1000
-    for i in range(800):
-        model(torch.unsqueeze(tensors[0], 0).float(), torch.unsqueeze(tensors[1], 0).float())
-    print(time.time() - st)
-    ############3
+if __name__ == '__main__':
+    root = get_init_node()
+    tensors = root.observation_tensors()
+    move = mcts(root)
+    print(move)
+
+    #############
+    # Test of nn
+    #############
+    # model = NN3DConnect4(features_3d_in_channels=4,
+    #                      features_scalar_in_channels=4,
+    #                      channels=16,
+    #                      blocks=4)
+    # model.eval()
+    # siz = 1
+    # for x in (4, 6, 6, 6):
+    #     siz *= x
+    # t = torch.arange(float(siz)).reshape((1,) + (4, 6, 6, 6))
+    # print(t.size())
+    #
+    # st = time.time()
+    # n = 1000
+    # for i in range(800):
+    #     model(torch.unsqueeze(tensors[0], 0).float(), torch.unsqueeze(tensors[1], 0).float())
+    # print(time.time() - st)
+    # ############3

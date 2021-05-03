@@ -2,6 +2,9 @@ import numpy as np
 import random
 import math
 import time
+from numpy.typing import ArrayLike
+from typing import List, Sequence, Tuple
+from copy import deepcopy
 
 # the coefficient for ucb
 c = 1.414
@@ -88,7 +91,7 @@ def get_state_properties_b(start_state, start_state_properties, movements):
             while cnt >= 4:
                 print(cnt)
                 temp_properties[c + 1] += 1
-                temp_properties[c - 1] +=  \
+                temp_properties[c - 1] += \
                     100 / (temp_properties[2] + temp_properties[3])
                 cnt -= 1
         temp_state[l, i, j] = c
@@ -96,12 +99,17 @@ def get_state_properties_b(start_state, start_state_properties, movements):
 
 
 class NODE:
-    def __init__(self, board, hands, move, properties):
+    def __init__(self, board: ArrayLike, hands: int, properties):
+        """
+
+        :param board: Board 6*6*6
+        :param hands: AKA turns
+        :param properties: [black score, white score, number of black lines, number of white lines]
+        """
         self.board = board
         self.hands = hands
-        self.move = move
         self.visiting_count = 0
-        self.winning_count = 0
+        self.value_sum = 0
         self.is_leaf = True
         self.is_root = False
         self.children = []
@@ -116,7 +124,7 @@ class NODE:
             p = -1
             next_node = self
             for child in self.children:
-                temp_p = ucb(child.visiting_count, child.winning_count)
+                temp_p = ucb(child.visiting_count, child.value_sum)
                 if temp_p > p:
                     p = temp_p
                     next_node = child
@@ -127,50 +135,31 @@ class NODE:
         # call the function which will return the legal moves
         # do the legal moves and add children to the leaf node
         self.is_leaf = False
-        temp_board = np.zeros([6, 6, 6])
-        for i in range(6):
-            for j in range(6):
-                for k in range(6):
-                    temp_board[i][j][k] = self.board[i][j][k]
+        temp_board = deepcopy(self.board)
         legal_moves = get_next_possible_move(temp_board)
         if self.hands % 2 == 0:
-            m = 1     # black
+            color = 1  # black
         else:
-            m = 2     # white
+            color = 2  # white
         for one_move in legal_moves:
-            temp_board = np.zeros([6, 6, 6])
-            for i in range(6):
-                for j in range(6):
-                    for k in range(6):
-                        temp_board[i][j][k] = self.board[i][j][k]
-
-            temp_properties = [0, 0, 0, 0]
-            for i in range(4):
-                temp_properties[i] = self.properties[i]
-
+            temp_board = deepcopy(self.board)
+            temp_properties = deepcopy(self.properties)
             temp_move = [0, 0, 0, 0]
             for i in range(3):
                 temp_move[i] = one_move[i]
-            temp_move[3] = m
-            movements = []
-            movements.append(temp_move)
+            temp_move[3] = color
+            movements = [temp_move]
             new_properties = get_state_properties_b(temp_board, temp_properties, movements)
-            temp_board[one_move[0]][one_move[1]][one_move[2]] = m
-            new_child = NODE(temp_board, self.hands + 1, one_move, new_properties)
+            temp_board[one_move[0]][one_move[1]][one_move[2]] = color
+            new_child = NODE(temp_board, self.hands + 1, new_properties)
             self.children.append(new_child)
             new_child.parent = self
 
     def simulate(self):
-        start_board = np.zeros([6, 6, 6])
-        temp_board = np.zeros([6, 6, 6])
-        for i in range(6):
-            for j in range(6):
-                for k in range(6):
-                    temp_board[i][j][k] = self.board[i][j][k]
-                    start_board[i][j][k] = self.board[i][j][k]
-        temp_properties = [0, 0, 0, 0]
-        for i in range(4):
-            temp_properties[i] = self.properties[i]
+        temp_board = deepcopy(self.board)
+        start_board = deepcopy(self.board)
+
+        temp_properties = deepcopy(self.properties)
 
         movements = []
         for n in range(self.hands, 64):
@@ -210,7 +199,7 @@ class NODE:
         flag = True
         while not temp_node.is_root:
             if flag:
-                temp_node.winning_count += reward
+                temp_node.value_sum += reward
                 flag = False
             else:
                 flag = True
@@ -240,7 +229,7 @@ def mcts(root):
     for i in root.children:
         if i.visiting_count == 0:
             continue
-        temp_value = i.winning_count / i.visiting_count
+        temp_value = i.value_sum / i.visiting_count
         if temp_value > value:
             value = temp_value
             temp_move = i.move
@@ -265,6 +254,6 @@ if __name__ == '__main__':
         np1[k][5][4] = -1
         np1[k][5][5] = -1
     start_properties = [0, 0, 0, 0]
-    a = NODE(np1, 0, None, start_properties)
+    a = NODE(np1, 0, start_properties)
     move = mcts(a)
     print(move)

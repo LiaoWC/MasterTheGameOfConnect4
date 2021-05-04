@@ -502,6 +502,13 @@ class MCTS:
             distribution_sum = sum(distribution)
             return [cnt / float(distribution_sum) for cnt in distribution]
 
+    def get_root_child_distribution_2d(self, normalize: bool) -> np.ndarray:
+        distribution = self.get_root_child_distribution(normalize=normalize)
+        distribution_2d = np.zeros(State.HEIGHT * State.WIDTH).reshape(State.HEIGHT, State.WIDTH)
+        for i, child in enumerate(self.root.children):
+            distribution_2d[child.move[1]][child.move[2]] = distribution[i]
+        return distribution_2d
+
     @staticmethod
     def get_init_node():
         np1 = np.zeros([6, 6, 6])

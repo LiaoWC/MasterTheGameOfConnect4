@@ -4,5 +4,15 @@ path:
   trained_trajectories: "trained_trajectories/"
 
 model:
-  channels: 16
+  channels: 32
   blocks: 4
+
+
+self_play: # actor
+  device: "cpu"
+  temperature_drop: 30 # After how many hands, it auto switch to select child with max visit cnt
+  mcts_time_limit: 99999 # Time unit: sec
+  mcts_max_simulation_cnt: 200 # >= 2
+
+train:
+  batch_size: 64 # For convenience, set multiples of 64 (totally 64 turns each game)

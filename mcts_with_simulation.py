@@ -3,17 +3,17 @@ import random
 import math
 import time
 from numpy.typing import ArrayLike
-from typing import List, Sequence, Tuple
+from typing import List, Sequence, Tuple, Optional, Union
 from copy import deepcopy
 import torch
 from abc import ABC
 from torch import nn
+from math import sqrt
 
-# the coefficient for ucb
-c = 1.414
-
-# global variable for counting all playing times
-n = 0
+# Hyper-parameters
+UCB_C = 1.414
+C_PUCT = 1.2
+C_POLICY_TARGET_PRUNING = 2
 
 
 #
@@ -45,15 +45,20 @@ def get_next_possible_move(state):
     return ret
 
 
-def ucb(visiting_count, winning_count):
-    global c
-    global n
-    if visiting_count == 0:
-        visiting_count = 0.999
-    p = math.log(n, 10) / visiting_count
-    p = pow(p, 0.5) * c
-    p = p + winning_count / visiting_count
+def ucb(child_visiting_count, winning_count, parent_visit_cnt):
+    if child_visiting_count == 0:
+        child_visiting_count = 1.
+    p = math.log(1. if parent_visit_cnt == 0 else float(parent_visit_cnt), 10) / child_visiting_count
+    p = pow(p, 0.5) * UCB_C
+    p = p + winning_count / child_visiting_count
     return p
+
+
+def puct(value_sum: float, visit_cnt: int, child_p: float, child_visit_cnt: int):
+    # assert visit_cnt > 0
+    q = value_sum / float(1 if visit_cnt == 0 else visit_cnt)
+    u = C_PUCT * child_p * sqrt(1. if visit_cnt == 0 else float(visit_cnt)) / float(1 + child_visit_cnt)
+    return q + u
 
 
 def boundary_test(coordinate):
@@ -128,6 +133,69 @@ def bool3d_to_onezero3d(arr: "np.ndarray") -> "np.ndarray":
     return result
 
 
+class EvalFunc:
+    # TODO: Ensure all eval function's all the input is one that has been deep-copied
+    """
+    # TODO: Ensure all eval function's input are in the same format: board, properties, hands, **kwargs.
+    """
+
+    @staticmethod
+    def playout(board, properties, hands) -> float:
+        # temp_board = deepcopy(self.board)
+        # start_board = deepcopy(self.board)
+
+        # temp_properties = deepcopy(self.properties)
+        temp_board = board
+        start_board = deepcopy(board)
+
+        movements = []
+        for n in range(hands, 64):
+            legal_moves = get_next_possible_move(temp_board)
+            m = random.randint(0, len(legal_moves) - 1)
+            temp_move = [0, 0, 0, 0]
+            for i in range(3):
+                temp_move[i] = legal_moves[m][i]
+            if n % 2 == 0:
+                temp_move[3] = 1
+                movements.append(temp_move)
+                temp_board[temp_move[0]][temp_move[1]][temp_move[2]] = 1
+            else:
+                temp_move[3] = 2
+                movements.append(temp_move)
+                temp_board[temp_move[0]][temp_move[1]][temp_move[2]] = 2
+
+        points = get_state_properties_b(start_board, properties, movements)
+        # black
+        if hands % 2 == 0:
+            if points[0] > points[1]:
+                return 1
+            else:
+                return 0
+        else:
+            if points[1] > points[0]:
+                return 1
+            else:
+                return 0
+
+    @staticmethod
+    def nn(board, properties, hands, model, device) -> (np.ndarray, float):
+        tensors = MCTS.observation_tensors(board, properties, hands)
+        # Turn to batch with batch size 1
+        tensor_3d, tensor_scalar = torch.unsqueeze(tensors[0], 0).float(), torch.unsqueeze(tensors[1], 0).float()
+        # To device
+        tensor_3d.to(device)
+        tensor_scalar.to(device)
+        # Get p and v
+        with torch.no_grad():
+            p, v = model(tensor_3d, tensor_scalar)
+        p = p.cpu().numpy()[0].reshape(State.HEIGHT, State.WIDTH)
+        v = v.cpu().tolist()[0][0]
+        return p, v
+
+
+# TODO: Batch size > 1 when inference?
+
+
 class NODE:
     def __init__(self, board: ArrayLike, hands: int, move, properties):
         """
@@ -143,34 +211,40 @@ class NODE:
         self.value_sum = 0
         self.is_leaf = True
         self.is_root = False
-        self.children = []
+        self.children: List["NODE"] = []
         self.parent = []
         self.properties = properties
+        self.child_probs: List[float] = []
 
-    def select(self):
+    def select(self, select_func: str):
         # search the tree, select a leaf node
         if self.is_leaf:
             return self
         else:
             p = -1
             next_node = self
-            for child in self.children:
-                temp_p = ucb(child.visiting_count, child.value_sum)
+            for i, child in enumerate(self.children):
+                if select_func == 'ucb':
+                    temp_p = ucb(child.visiting_count, child.value_sum, self.visiting_count)
+                elif select_func == 'puct':
+                    temp_p = puct(value_sum=self.value_sum, visit_cnt=self.visiting_count,
+                                  child_p=self.child_probs[i], child_visit_cnt=self.children[i].visiting_count)
+                else:
+                    raise ValueError('Invalid select_func: {}'.format(select_func))
                 if temp_p > p:
                     p = temp_p
                     next_node = child
-
-            return next_node.select()
+            return next_node.select(select_func)
 
     def expand(self):
         # call the function which will return the legal moves
         # do the legal moves and add children to the leaf node
         self.is_leaf = False
-        '''temp_board = np.zeros([6, 6, 6])
-        for i in range(6):
-            for j in range(6):
-                for i in range(6):
-                    temp_board[i][j][k] = self.board[i][j][k]'''
+        # '''temp_board = np.zeros([6, 6, 6])
+        # for i in range(6):
+        #     for j in range(6):
+        #         for i in range(6):
+        #             temp_board[i][j][k] = self.board[i][j][k]'''
         temp_board = deepcopy(self.board)
         legal_moves = get_next_possible_move(temp_board)
         if self.hands % 2 == 0:
@@ -178,15 +252,15 @@ class NODE:
         else:
             color = 2  # white
         for one_move in legal_moves:
-            '''temp_board = np.zeros([6, 6, 6])
-            for i in range(6):
-                for j in range(6):
-                    for i in range(6):
-                        temp_board[i][j][k] = self.board[i][j][k]'''
+            # '''temp_board = np.zeros([6, 6, 6])
+            # for i in range(6):
+            #     for j in range(6):
+            #         for i in range(6):
+            #             temp_board[i][j][k] = self.board[i][j][k]'''
             temp_board = deepcopy(self.board)
-            '''temp_properties = [0, 0, 0, 0]
-            for i in range(4):
-                temp_properties[i] = self.properties[i]'''
+            # '''temp_properties = [0, 0, 0, 0]
+            # for i in range(4):
+            #     temp_properties[i] = self.properties[i]'''
             temp_properties = deepcopy(self.properties)
             temp_move = [0, 0, 0, 0]
             for i in range(3):
@@ -199,81 +273,179 @@ class NODE:
             self.children.append(new_child)
             new_child.parent = self
 
-    def simulate(self):
-        '''temp_board = np.zeros([6, 6, 6])
-        start_board = np.zeros([6, 6, 6])
-        for i in range(6):
-            for j in range(6):
-                for i in range(6):
-                    temp_board[i][j][k] = self.board[i][j][k]
-                    start_board[i][j][k] = self.board[i][j][k]'''
-        temp_board = deepcopy(self.board)
-        start_board = deepcopy(self.board)
-
-        '''temp_properties = [0, 0, 0, 0]
-        for i in range(4):
-            temp_properties[i] = self.properties[i]'''
-        temp_properties = deepcopy(self.properties)
-
-        movements = []
-        for n in range(self.hands, 64):
-            legal_moves = get_next_possible_move(temp_board)
-            m = random.randint(0, len(legal_moves) - 1)
-            temp_move = [0, 0, 0, 0]
-            for i in range(3):
-                temp_move[i] = legal_moves[m][i]
-            if n % 2 == 0:
-                temp_move[3] = 1
-                movements.append(temp_move)
-                temp_board[temp_move[0]][temp_move[1]][temp_move[2]] = 1
-            else:
-                temp_move[3] = 2
-                movements.append(temp_move)
-                temp_board[temp_move[0]][temp_move[1]][temp_move[2]] = 2
-
-        points = get_state_properties_b(start_board, temp_properties, movements)
-        # black
-        if self.hands % 2 == 0:
-            if points[0] > points[1]:
-                return 1
-            else:
-                return 0
-        else:
-            if points[1] > points[0]:
-                return 1
-            else:
-                return 0
-
     def backup(self, reward):
         # from self to root
         # update visiting count and winning count
-        global n
-        n += 1
         temp_node = self
         flag = True
         if reward == 1:
-            while not temp_node.is_root:
+            while True:
                 if flag:
                     temp_node.value_sum += reward
                     flag = False
                 else:
                     flag = True
                 temp_node.visiting_count += 1
+                if temp_node.is_root:
+                    break
                 temp_node = temp_node.parent
         else:
-            while not temp_node.is_root:
+            while True:
                 if flag:
                     flag = False
                 else:
                     temp_node.value_sum += 1
                     flag = True
                 temp_node.visiting_count += 1
+                if temp_node.is_root:
+                    break
                 temp_node = temp_node.parent
 
-    def play(self):
-        pass
+    def get_node_after_playing(self, move):
+        temp_board = deepcopy(self.board)
+        temp_properties = deepcopy(self.properties)
+        if self.hands % 2 == 0:
+            color = 1
+        else:
+            color = 2
+        temp_move = [0, 0, 0, 0]
+        for i in range(3):
+            temp_move[i] = move[i]
+        temp_move[3] = color
+        movements = [temp_move]
+        new_properties = get_state_properties_b(temp_board, temp_properties, movements)
+        temp_board[move[0]][move[1]][move[2]] = color
+        return NODE(board=temp_board,
+                    hands=self.hands + 1,
+                    move=move,
+                    properties=new_properties)
 
-    def observation_tensors(self) -> Tuple["torch.Tensor", "torch.Tensor"]:
+
+class MCTS:
+    def __init__(self,
+                 root_node: "NODE",
+                 max_time_sec: int,
+                 eval_func: str,
+                 model=None,
+                 device=None,
+                 max_simulation_cnt: int = 999999,
+                 not_greedy: bool = False):
+        """
+        Available evaluation functions current:
+            1. playout
+            2. nn:
+                    - Need provide model, and device.
+
+        :param root_node:
+        :param max_simulation_cnt:
+        :param eval_func:
+        :param model:
+        :param not_greedy: Use prob to pick up a move rather than pick up best-confident child. This only affect \
+            when you use nn to eval.
+        """
+        self.root = root_node
+        self.cur_simulation_cnt = 0
+        self.max_simulation_cnt = max_simulation_cnt
+        self.max_time_sec = max_time_sec
+        self.eval_func = eval_func
+        self.model = model
+        self.device = device
+        self.not_greedy = not_greedy
+        # Check evaluation function
+        if eval_func not in ['playout', 'nn']:
+            raise ValueError('Invalid eval_func: {}'.format(eval_func))
+        if eval_func == 'nn':
+            if not model or not device:
+                raise ValueError('You must provide the parameter "model" and "device" when the eval_func is "nn".')
+            self.model.to(device)
+
+    def run(self, return_simulation_cnt=False):
+        self.root.is_root = True
+        start = time.time()
+        while True:
+            #############
+            # Select
+            ##############
+            if self.eval_func == 'playout':
+                select_func = 'ucb'
+            elif self.eval_func == 'nn':
+                select_func = 'puct'
+            else:
+                raise ValueError('Invalid eval_func: {}'.format(self.eval_func))
+            temp_node = self.root.select(select_func)
+            ########
+            # Expand
+            ########
+            temp_node.expand()
+            ################################
+            # Eval
+            ################################
+            board, properties, hands = deepcopy(temp_node.board), deepcopy(temp_node.properties), deepcopy(
+                temp_node.hands)
+            if self.eval_func == 'playout':
+                reward = EvalFunc.playout(board, properties, hands)
+            elif self.eval_func == 'nn':
+                ######################################################################
+                p, v = EvalFunc.nn(board, properties, hands, self.model, self.device)
+                # Filter out illegal moves and re-normalize the probability
+                if len(temp_node.children) == 0:
+                    raise ValueError('You must this this function after the node is expanded.')
+                for child in temp_node.children:
+                    temp_node.child_probs.append(p[child.move[1]][child.move[2]])
+                probs_sum = sum(temp_node.child_probs)
+                for i in range(len(temp_node.children)):
+                    temp_node.child_probs[i] = temp_node.child_probs[i] / probs_sum
+                reward = v
+                ######################################################################
+            else:
+                raise ValueError('Invalid eval_func: {}'.format(self.eval_func))
+            ############
+            # Backup
+            ############
+            temp_node.backup(reward)
+            self.cur_simulation_cnt += 1
+            ####################
+            # Check time limit
+            ####################
+            end = time.time()
+            if end - start >= self.max_time_sec:
+                break
+
+        #############################################
+        # After each simulation, pick a move to play
+        #############################################
+        if self.eval_func == 'playout':
+            picked_move = [0, 0, 0]
+            value = 0
+            for i in self.root.children:
+                if i.visiting_count == 0:
+                    continue
+                temp_value = i.value_sum / i.visiting_count
+                if temp_value > value:
+                    value = temp_value
+                    picked_move = i.move
+
+        elif self.eval_func == 'nn':
+            distribution = self.get_root_child_distribution(normalize=True)
+            if self.not_greedy:
+                picked_idx = random.choices(range(0, len(distribution)), distribution)[0]
+            else:
+                max_value = max(distribution)
+                max_value_indices = [x for i, x in enumerate(distribution) if x == max_value]
+                picked_idx = random.randint(0, len(max_value_indices) - 1)
+            picked_move = self.root.children[picked_idx].move
+        else:
+            raise ValueError('Invalid eval_func here: {}'.format(self.eval_func))
+        ##########
+        # Return
+        ##########
+        if return_simulation_cnt:
+            return picked_move, self.cur_simulation_cnt
+        else:
+            return picked_move
+
+    @staticmethod
+    def observation_tensors(board, properties, hands) -> Tuple["torch.Tensor", "torch.Tensor"]:
         """Get the tensors for input the neural network.
         Two kinds of tensors: 3D and scalar-vector.
             - 3D: Features from 3D state
@@ -292,46 +464,29 @@ class NODE:
         """
 
         # 3D Features
-        features_3d = [bool3d_to_onezero3d(np.equal(Color.BLACK, self.board)),
-                       bool3d_to_onezero3d(np.equal(Color.WHITE, self.board)),
-                       bool3d_to_onezero3d(np.equal(Color.EMPTY, self.board)),
-                       bool3d_to_onezero3d(np.full(State.STATE_SHAPE, 0 if self.hands % 2 == 0 else 1))]
+        features_3d = [bool3d_to_onezero3d(np.equal(Color.BLACK, board)),
+                       bool3d_to_onezero3d(np.equal(Color.WHITE, board)),
+                       bool3d_to_onezero3d(np.equal(Color.EMPTY, board)),
+                       bool3d_to_onezero3d(np.full(State.STATE_SHAPE, 0 if hands % 2 == 0 else 1))]
         features_3d = torch.tensor(features_3d)
 
         # Scalar Features
-        features_scalar = [self.properties[0] / 100,
-                           self.properties[1] / 100,
-                           self.properties[2] / 2,
-                           self.properties[3] / 2]
+        features_scalar = [properties[0] / 100,
+                           properties[1] / 100,
+                           properties[2] / 2,
+                           properties[3] / 2]
         features_scalar = torch.tensor(features_scalar)
 
         return features_3d, features_scalar
 
-
-def mcts(root):
-    root.is_root = True
-    start = time.time()
-    while True:
-        temp_node = root.select()
-        temp_node.expand()
-        reward = temp_node.simulate()
-        temp_node.backup(reward)
-        end = time.time()
-        if end - start >= 3:
-            break
-
-    temp_move = [0, 0, 0]
-    value = 0
-    for i in root.children:
-        if i.visiting_count == 0:
-            continue
-        temp_value = i.value_sum / i.visiting_count
-        if temp_value > value:
-            value = temp_value
-            temp_move = i.move
-
-    print(n)
-    return temp_move
+    def get_root_child_distribution(self, normalize: bool) -> Union[List[int], List[float]]:
+        distribution = [child.visiting_count for child in self.root.children]
+        if not normalize:
+            return distribution
+        else:
+            # Normalize to get proportions whose sum is 1.
+            distribution_sum = sum(distribution)
+            return [cnt / float(distribution_sum) for cnt in distribution]
 
 
 class BasicBlock(nn.Module, ABC):
@@ -400,7 +555,6 @@ class NN3DConnect4(nn.Module, ABC):
         self.features_scalar_in_channels = features_scalar_in_channels
         self.channels = channels
         self.blocks = blocks
-        self.num_players = 2
         self.num_distinct_actions = State.HEIGHT * State.WIDTH
 
         # Inputs
@@ -445,7 +599,7 @@ class NN3DConnect4(nn.Module, ABC):
                       out_features=self.channels),
             nn.ReLU(),
             nn.Linear(in_features=self.channels,
-                      out_features=self.num_players),
+                      out_features=1),
             nn.Tanh()
         )
 
@@ -488,28 +642,23 @@ def get_init_node():
 
 
 if __name__ == '__main__':
+    ###########################
+    # How to do "playout" mcts?
+    ###########################
+    # root = get_init_node()
+    # mcts = MCTS(root,
+    #             max_simulation_cnt=9999,
+    #             eval_func='playout', max_time_sec=3)
+    # move = mcts.run()
+    # print(move)
+    ########################
+    # How to use nn?
+    ########################
     root = get_init_node()
-    tensors = root.observation_tensors()
-    move = mcts(root)
-    print(move)
-
-    #############
-    # Test of nn
-    #############
-    # model = NN3DConnect4(features_3d_in_channels=4,
-    #                      features_scalar_in_channels=4,
-    #                      channels=16,
-    #                      blocks=4)
-    # model.eval()
-    # siz = 1
-    # for x in (4, 6, 6, 6):
-    #     siz *= x
-    # t = torch.arange(float(siz)).reshape((1,) + (4, 6, 6, 6))
-    # print(t.size())
-    #
-    # st = time.time()
-    # n = 1000
-    # for i in range(800):
-    #     model(torch.unsqueeze(tensors[0], 0).float(), torch.unsqueeze(tensors[1], 0).float())
-    # print(time.time() - st)
-    # ############3
+    model = NN3DConnect4(features_3d_in_channels=4,
+                         features_scalar_in_channels=4,
+                         channels=16,
+                         blocks=4)
+    mcts = MCTS(root, max_simulation_cnt=9999, eval_func='nn', model=model, device='cpu',
+                max_time_sec=3, not_greedy=False)
+    print(mcts.run(return_simulation_cnt=True))

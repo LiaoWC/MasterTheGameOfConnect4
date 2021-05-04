@@ -9,6 +9,9 @@ import torch
 from abc import ABC
 from torch import nn
 from math import sqrt
+import argparse
+import pathlib
+import yaml
 
 # Hyper-parameters
 UCB_C = 1.414
@@ -359,8 +362,9 @@ class MCTS:
                 raise ValueError('You must provide the parameter "model" and "device" when the eval_func is "nn".')
             self.model.to(device)
 
-    def run(self, return_simulation_cnt=False):
+    def run(self, return_simulation_cnt=False, return_time_used=False):
         self.root.is_root = True
+        time_used = 0.0
         start = time.time()
         while True:
             #############
@@ -404,11 +408,17 @@ class MCTS:
             ############
             temp_node.backup(reward)
             self.cur_simulation_cnt += 1
+            end = time.time()
+            time_used = end - start
             ####################
             # Check time limit
             ####################
-            end = time.time()
             if end - start >= self.max_time_sec:
+                break
+            ################################
+            # Check simulation count limit
+            ################################
+            if self.cur_simulation_cnt >= self.max_simulation_cnt:
                 break
 
         #############################################
@@ -439,10 +449,12 @@ class MCTS:
         ##########
         # Return
         ##########
+        rtn_list = [picked_move]
         if return_simulation_cnt:
-            return picked_move, self.cur_simulation_cnt
-        else:
-            return picked_move
+            rtn_list.append(self.cur_simulation_cnt)
+        if return_time_used:
+            rtn_list.append(time_used)
+        return tuple(rtn_list)
 
     @staticmethod
     def observation_tensors(board, properties, hands) -> Tuple["torch.Tensor", "torch.Tensor"]:
@@ -480,6 +492,8 @@ class MCTS:
         return features_3d, features_scalar
 
     def get_root_child_distribution(self, normalize: bool) -> Union[List[int], List[float]]:
+        if self.root.visiting_count <= 1:
+            raise ValueError("Root's visit cnt must > 2 when you use this function.")
         distribution = [child.visiting_count for child in self.root.children]
         if not normalize:
             return distribution
@@ -487,6 +501,25 @@ class MCTS:
             # Normalize to get proportions whose sum is 1.
             distribution_sum = sum(distribution)
             return [cnt / float(distribution_sum) for cnt in distribution]
+
+    @staticmethod
+    def get_init_node():
+        np1 = np.zeros([6, 6, 6])
+        for k in range(0, 6):
+            np1[k][0][0] = -1
+            np1[k][0][1] = -1
+            np1[k][0][4] = -1
+            np1[k][0][5] = -1
+            np1[k][1][0] = -1
+            np1[k][1][5] = -1
+            np1[k][4][0] = -1
+            np1[k][4][5] = -1
+            np1[k][5][0] = -1
+            np1[k][5][1] = -1
+            np1[k][5][4] = -1
+            np1[k][5][5] = -1
+        start_properties = [0, 0, 0, 0]
+        return NODE(np1, 0, None, start_properties)
 
 
 class BasicBlock(nn.Module, ABC):
@@ -622,30 +655,19 @@ class NN3DConnect4(nn.Module, ABC):
         return p, v
 
 
-def get_init_node():
-    np1 = np.zeros([6, 6, 6])
-    for k in range(0, 6):
-        np1[k][0][0] = -1
-        np1[k][0][1] = -1
-        np1[k][0][4] = -1
-        np1[k][0][5] = -1
-        np1[k][1][0] = -1
-        np1[k][1][5] = -1
-        np1[k][4][0] = -1
-        np1[k][4][5] = -1
-        np1[k][5][0] = -1
-        np1[k][5][1] = -1
-        np1[k][5][4] = -1
-        np1[k][5][5] = -1
-    start_properties = [0, 0, 0, 0]
-    return NODE(np1, 0, None, start_properties)
-
-
 if __name__ == '__main__':
+    # Argument parsing
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-f', '--config', help='Path to config file.', required=True)
+    args = parser.parse_args()
+
+    # Read config from training_config.yaml
+    config = yaml.safe_load(pathlib.Path(args.config).read_text())
+
     ###########################
     # How to do "playout" mcts?
     ###########################
-    # root = get_init_node()
+    # root = MCTS.get_init_node()
     # mcts = MCTS(root,
     #             max_simulation_cnt=9999,
     #             eval_func='playout', max_time_sec=3)
@@ -654,11 +676,11 @@ if __name__ == '__main__':
     ########################
     # How to use nn?
     ########################
-    root = get_init_node()
+    root = MCTS.get_init_node()
     model = NN3DConnect4(features_3d_in_channels=4,
                          features_scalar_in_channels=4,
-                         channels=16,
-                         blocks=4)
+                         channels=config['model']['channels'],
+                         blocks=config['model']['blocks'])
     mcts = MCTS(root, max_simulation_cnt=9999, eval_func='nn', model=model, device='cpu',
                 max_time_sec=3, not_greedy=False)
     print(mcts.run(return_simulation_cnt=True))

@@ -186,11 +186,12 @@ class EvalFunc:
         # Turn to batch with batch size 1
         tensor_3d, tensor_scalar = torch.unsqueeze(tensors[0], 0).float(), torch.unsqueeze(tensors[1], 0).float()
         # To device
-        tensor_3d.to(device)
-        tensor_scalar.to(device)
+        tensor_3d = tensor_3d.to(device)
+        tensor_scalar = tensor_scalar.to(device)
+        model = model.to(device)
         # Get p and v
         with torch.no_grad():
-            p, v = model(tensor_3d, tensor_scalar)
+            p, v = model.forward(tensor_3d, tensor_scalar)
         p = p.cpu().numpy()[0].reshape(State.HEIGHT, State.WIDTH)
         v = v.cpu().tolist()[0][0]
         return p, v
@@ -364,7 +365,6 @@ class MCTS:
 
     def run(self, return_simulation_cnt=False, return_time_used=False):
         self.root.is_root = True
-        time_used = 0.0
         start = time.time()
         while True:
             #############
@@ -684,10 +684,20 @@ if __name__ == '__main__':
     # How to use nn?
     ########################
     root = MCTS.get_init_node()
-    model = NN3DConnect4(features_3d_in_channels=4,
-                         features_scalar_in_channels=4,
-                         channels=config['model']['channels'],
-                         blocks=config['model']['blocks'])
-    mcts = MCTS(root, max_simulation_cnt=9999, eval_func='nn', model=model, device='cpu',
+    # Load neural network model
+    net = NN3DConnect4(features_3d_in_channels=4,
+                       features_scalar_in_channels=4,
+                       channels=config['model']['channels'],
+                       blocks=config['model']['blocks'])
+    ########################
+    # How to load nn model?
+    ########################
+    # model_path = '????'
+    # net.load_state_dict(torch.load(model_path))
+    #######################
+    # How to use MCTS?
+    #######################
+    mcts = MCTS(root, max_simulation_cnt=9999, eval_func='nn', model=net,
+                device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
                 max_time_sec=3, not_greedy=False)
     print(mcts.run(return_simulation_cnt=True))

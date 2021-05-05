@@ -119,4 +119,40 @@ def random_gen_board(steps):
     print(board)
     return movements
 
+def gen_block_move(state, is_black):
+    all_possible_moves = get_next_possible_move(state)
+    opponent_color = 2 if is_black else 1
+    dirs = []
+    vec = [-1, 0, 1]
+    for l in vec:
+        for i in vec:
+            for j in vec:
+                if l == 0 and i == 0 and j == 0:
+                    continue
+                dirs.append([l, i, j])
+    block_moves = []
+    for move in all_possible_moves:
+        for dir in dirs:
+            new_pos = np.add(move, dir)
+            
+            l, i, j = new_pos[0], new_pos[1], new_pos[2]
+            if not boundary_test(new_pos):
+                continue
+            if state[l, i, j] != opponent_color:
+                continue
+            new_pos = np.add(new_pos, dir)
+            l, i, j = new_pos[0], new_pos[1], new_pos[2]
+            if not boundary_test(new_pos):
+                continue
+            if state[l, i, j] != opponent_color:
+                continue
+            
+            block_moves.append(move)
+    if block_moves:
+        choose_index = np.random.randint(len(block_moves))
+        return block_moves[choose_index]
+    else:
+        choose_index = np.random.randint(len(all_possible_moves))
+        return all_possible_moves[choose_index]
+
 

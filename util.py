@@ -156,3 +156,26 @@ def gen_block_move(state, is_black):
         return all_possible_moves[choose_index]
 
 
+def get_rotate_and_mirror(board):
+    b1 = np.zeros([6, 6, 6])
+    b2 = np.zeros([6, 6, 6])
+    b3 = np.zeros([6, 6, 6])
+    b4 = np.zeros([6, 6, 6])
+    b5 = np.zeros([6, 6, 6])
+    b6 = np.zeros([6, 6, 6])
+    b7 = np.zeros([6, 6, 6])
+    b8 = np.zeros([6, 6, 6])
+    for i in range(6):
+        for j in range(6):
+            for k in range(6):
+                b1[i][j][k] = board[i][j][k]
+                b2[i][k][5 - j] = board[i][j][k]
+                b3[i][5 - j][5 - k] = board[i][j][k]
+                b4[i][5 - k][j] = board[i][j][k]
+                b5[i][j][5 - k] = board[i][j][k]
+                b6[i][5 -k][5 - j] = board[i][j][k]
+                b7[i][5 - j][k] = board[i][j][k]
+                b8[i][k][j] = board[i][j][k]
+    board_list = [b1, b2, b3, b4, b5, b6, b7, b8]
+    ret = np.array(board_list)
+    return ret

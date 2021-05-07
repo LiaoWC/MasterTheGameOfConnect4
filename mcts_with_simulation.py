@@ -15,7 +15,7 @@ import yaml
 
 # Hyper-parameters
 UCB_C = 1.414
-C_PUCT = 1.2
+C_PUCT = 1.5
 C_POLICY_TARGET_PRUNING = 2
 
 
@@ -192,7 +192,7 @@ class EvalFunc:
         # Get p and v
         with torch.no_grad():
             p, v = model.forward(tensor_3d, tensor_scalar)
-        p = p.cpu().numpy()[0].reshape(State.HEIGHT, State.WIDTH)
+        p = p.cpu().numpy()[0]
         v = v.cpu().tolist()[0][0]
         return p, v
 
@@ -333,7 +333,10 @@ class MCTS:
                  model=None,
                  device=None,
                  max_simulation_cnt: int = 999999,
-                 not_greedy: bool = False):
+                 not_greedy: bool = False,
+                 dirichlet_noise: bool = False,
+                 dirichlet_epsilon: float = 0.25,
+                 dirichlet_alpha: float = 0.05):
         """
         Available evaluation functions current:
             1. playout
@@ -346,6 +349,7 @@ class MCTS:
         :param model:
         :param not_greedy: Use prob to pick up a move rather than pick up best-confident child. This only affect \
             when you use nn to eval.
+        :param dirichlet_noise: Use Dirichlet noise or not. Only affect nn.
         """
         self.root = root_node
         self.cur_simulation_cnt = 0
@@ -355,6 +359,9 @@ class MCTS:
         self.model = model
         self.device = device
         self.not_greedy = not_greedy
+        self.dirichlet_noise = dirichlet_noise
+        self.dirichlet_epsilon = dirichlet_epsilon
+        self.dirichlet_alpha = dirichlet_alpha
         # Check evaluation function
         if eval_func not in ['playout', 'nn']:
             raise ValueError('Invalid eval_func: {}'.format(eval_func))
@@ -391,11 +398,23 @@ class MCTS:
             elif self.eval_func == 'nn':
                 ######################################################################
                 p, v = EvalFunc.nn(board, properties, hands, self.model, self.device)
+                # Do dirichlet on root's child probs
+                dirichlet_samples = []
+                dirichlet_sum = 0.
+                if temp_node.is_root and self.dirichlet_noise:
+                    dirichlet_samples = np.random.dirichlet(np.full((len(temp_node.children),),
+                                                                    self.dirichlet_alpha)).tolist()
+                # Reshape p to be 2D
+                p = p.reshape(State.HEIGHT, State.WIDTH)
                 # Filter out illegal moves and re-normalize the probability
                 if len(temp_node.children) == 0:
                     raise ValueError('You must this this function after the node is expanded.')
-                for child in temp_node.children:
-                    temp_node.child_probs.append(p[child.move[1]][child.move[2]])
+                for idx, child in enumerate(temp_node.children):
+                    child_prob = p[child.move[1]][child.move[2]]
+                    if temp_node.is_root and self.dirichlet_noise:
+                        child_prob = (1 - self.dirichlet_epsilon) * child_prob + self.dirichlet_epsilon * \
+                                     dirichlet_samples[idx]
+                    temp_node.child_probs.append(child_prob)
                 probs_sum = sum(temp_node.child_probs)
                 for i in range(len(temp_node.children)):
                     temp_node.child_probs[i] = temp_node.child_probs[i] / probs_sum
@@ -699,5 +718,9 @@ if __name__ == '__main__':
     #######################
     mcts = MCTS(root, max_simulation_cnt=9999, eval_func='nn', model=net,
                 device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
-                max_time_sec=3, not_greedy=False)
+                max_time_sec=3, not_greedy=False, dirichlet_noise=False)
+    print(mcts.run(return_simulation_cnt=True))
+    mcts = MCTS(root, max_simulation_cnt=9999, eval_func='nn', model=net,
+                device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
+                max_time_sec=3, not_greedy=False, dirichlet_noise=True)
     print(mcts.run(return_simulation_cnt=True))

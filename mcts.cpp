@@ -14,8 +14,6 @@ typedef std::chrono::high_resolution_clock Time;
 typedef std::chrono::duration<double> sec;
 using namespace std;
 
-class Node;
-
 double ucb(int child_visiting_count,
            int winning_count,
            double parent_visit_cnt) {
@@ -29,6 +27,17 @@ double ucb(int child_visiting_count,
     p = p + (double) winning_count / (double) child_visiting_count;
     return p;
 
+}
+
+template<typename T>
+void print_vector_2d_plane(vector<vector<T>> plane) {
+    cout << endl;
+    for (const auto& line: plane) {
+        for (const auto item: line) {
+            cout << item << " ";
+        }
+        cout << endl;
+    }
 }
 
 class Movement {
@@ -198,7 +207,6 @@ public:
         children.clear();
     }
 
-
     shared_ptr<Node> select() {
         shared_ptr<Node> cur = shared_from_this();
         while (true) {
@@ -219,7 +227,6 @@ public:
             }
         }
     }
-
 
     void expand() {
         this->is_leaf = false;
@@ -251,7 +258,6 @@ public:
             new_child->parent = shared_from_this();
         }
     }
-
 
     int playout() {
         int temp_board[6][6][6];
@@ -291,7 +297,6 @@ public:
                 return 0;
         }
     }
-
 
     void backup(int reward) {
         shared_ptr<Node> cur = shared_from_this();
@@ -335,7 +340,6 @@ public:
             }
         }
     }
-
 
     vector<Movement> get_next_possible_move() {
         vector<Movement> ret;
@@ -460,6 +464,56 @@ public:
 };
 
 class MCTS {
+
+private:
+    vector<vector<float>> first_layer_stat(int mode, const string& output_filename_suffix) {
+        // If output_filename_suffix == empty string means:
+        //     "not to output to file"
+        // Mode
+        //     1: visiting_count
+        //     2: value_sum
+        //     3: visiting_count / value_sum
+        vector<vector<float>> plane(6);
+        string mode_name;
+        for (auto &row: plane) {
+            row.resize(6);
+        }
+        for (auto &child: root->children) {
+            float value;
+            switch (mode) {
+                case 1:
+                    value = (float) child->visiting_count;
+                    mode_name = "Visiting_Count";
+                    break;
+                case 2:
+                    value = (float) child->value_sum;
+                    mode_name = "Value_Sum";
+                    break;
+                case 3:
+                    value = (float) child->value_sum / (float) child->visiting_count;
+                    mode_name = "Value_Mean";
+                    break;
+                default:
+                    cerr << "Invalid mode: " << mode << endl;
+                    exit(EXIT_FAILURE);
+            }
+            plane[child->move.x][child->move.y] = value;
+        }
+        // Output file
+        if (!output_filename_suffix.empty()){
+            ofstream ofs("first_layer_stat_" + output_filename_suffix + ".txt", fstream::trunc);
+            ofs << mode_name;
+            for (const auto& line: plane){
+                for(auto item: line){
+                    ofs << " " << item;
+                }
+            }
+            ofs.close();
+        }
+        // Return 2D vector
+        return plane;
+    }
+
 public:
     shared_ptr<Node> root;
     int cur_simulation_cnt;
@@ -573,6 +627,24 @@ public:
     ~MCTS() {
         root.reset();
     }
+
+
+    vector<vector<float>> first_layer_visit_cnt_distribution(const string& output_filename_suffix) {
+        // Output filename == empty string means "not to output to file"
+        return first_layer_stat(1,  output_filename_suffix);
+    }
+
+    vector<vector<float>> first_layer_value_sum_distribution(const string& output_filename_suffix) {
+        // Output filename == empty string means "not to output to file"
+
+        return first_layer_stat(2,  output_filename_suffix);
+    }
+
+    vector<vector<float>> first_layer_value_mean_distribution(const string& output_filename_suffix) {
+        // Output filename == empty string means "not to output to file"
+        return first_layer_stat(3, output_filename_suffix);
+    }
+
 };
 
 int main() {
@@ -580,23 +652,39 @@ int main() {
     srand(time(nullptr));
 
     // shared_ptr<Node> cur_node = MCTS::get_init_node();
-    shared_ptr<Node> cur_node = MCTS::get_random_board_node(32, 99999, 4);
+    shared_ptr<Node> cur_node = MCTS::get_random_board_node(40, 5000, 99);
+
+    auto movements = cur_node->gen_block_move();
+    MCTS mcts(cur_node, 5000, 999, true);
+    Movement move = mcts.run();
+
+    print_vector_2d_plane(mcts.first_layer_value_sum_distribution("valueSum"));
+    print_vector_2d_plane(mcts.first_layer_visit_cnt_distribution("visitCnt"));
+    print_vector_2d_plane(mcts.first_layer_value_mean_distribution("valueMean"));
+
+    //
+    vector<Movement> v = cur_node->gen_block_move();
+    for (auto &a_move: v) {
+        cout << a_move.l << ", " << a_move.x << ", " << a_move.y << endl;
+    }
+    cout << "Total: " << v.size() << " moves." << endl;
+
+
 
     cur_node->output_board_string_for_plot_state();
-    auto movements = cur_node->gen_block_move();
-    for (auto item : movements) {
-        item.print_movement();
-    }
     system("python3 plot_state.py board_content_for_plotting.txt");
 
 
-//
-//    vector<Movement> v = start_node->gen_block_move();
-//    for (auto &move: v) {
-//        cout << move.l << ", " << move.x << ", " << move.y << endl;
+
+
+//    for (auto item : movements) {
+//        item.print_movement();
 //    }
-//    cout << "Total: " << v.size() << " moves." << endl;
-//
+
+
+
+
+
 
 //    MCTS mcts(cur_node, 9999999, 3, true);
 //    mcts.run();

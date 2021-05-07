@@ -63,26 +63,6 @@ public:
     }
 };
 
-vector<Movement> get_next_possible_move(int state[6][6][6]) {
-    vector<Movement> ret;
-    ret.clear();
-    for (int i = 0; i < 6; i++) {
-        for (int j = 0; j < 6; j++) {
-            if (state[5][i][j] != 0)
-                continue;
-            for (int l = 0; l < 6; l++) {
-                if (state[l][i][j] == 0) {
-                    Movement move(l, i, j, 0);
-                    ret.push_back(move);
-                    break;
-                }
-            }
-        }
-    }
-    return ret;
-}
-
-
 bool boundary_test(const int coordinate[3]) {
     for (int i = 0; i < 3; i++)
         if (coordinate[i] < 0 || coordinate[i] >= 6)
@@ -231,14 +211,7 @@ public:
     void expand() {
         this->is_leaf = false;
         int temp_board[6][6][6];
-        for (int i = 0; i < 6; i++) {
-            for (int j = 0; j < 6; j++) {
-                for (int k = 0; k < 6; k++) {
-                    temp_board[i][j][k] = this->board[i][j][k];
-                }
-            }
-        }
-        vector<Movement> legal_moves = get_next_possible_move(temp_board);
+        vector<Movement> legal_moves = this->get_next_possible_move();
         int color;
         if (this->hands % 2 == 0)
             color = 1;
@@ -281,7 +254,7 @@ public:
         vector<Movement> movements;
         movements.clear();
         for (int i = hands; i < 64; i++) {
-            vector<Movement> legal_moves = get_next_possible_move(temp_board);
+            vector<Movement> legal_moves = this->get_next_possible_move();
             int random_number = rand() % legal_moves.size();
             Movement temp_move = legal_moves[random_number];
             if (i % 2 == 0) {
@@ -341,6 +314,82 @@ public:
             }
         }
     }
+
+
+    vector<Movement> get_next_possible_move() {
+        vector<Movement> ret;
+        ret.clear();
+        for (int i = 0; i < 6; i++) {
+            for (int j = 0; j < 6; j++) {
+                if (this->board[5][i][j] != 0)
+                    continue;
+                for (int l = 0; l < 6; l++) {
+                    if (this->board[l][i][j] == 0) {
+                        Movement move(l, i, j, 0);
+                        ret.push_back(move);
+                        break;
+                    }
+                }
+            }
+        }
+        return ret;
+    }
+
+
+    vector<Movement> gen_block_move() {
+        vector<Movement> all_possible_moves = this->get_next_possible_move();
+        int opponent_color = (this->hands%2==0) ? 2 : 1;
+        int dirs[26][3];
+        int cnt = 0;
+        for (int l = -1; l <= 1; l++) {
+            for (int i = -1; i <= 1; i++) {
+                for (int j = -1; j <= 1; j++) {
+                    if (l == 0 && i == 0 && j == 0)
+                        continue;
+                    dirs[cnt][0] = l;
+                    dirs[cnt][1] = i;
+                    dirs[cnt][2] = j;
+                    cnt++;
+                }
+            }
+        }
+        vector<Movement> block_moves;
+        for (int move_num = 0; move_num < all_possible_moves.size(); move_num++) {
+            for (int dir_num = 0; dir_num < 26; dir_num++) {
+                int *new_pos = new int[3];
+                new_pos[0] = all_possible_moves[move_num].l + dirs[dir_num][0];
+                new_pos[1] = all_possible_moves[move_num].x + dirs[dir_num][1];
+                new_pos[2] = all_possible_moves[move_num].y + dirs[dir_num][2];
+
+                int l = new_pos[0], i = new_pos[1], j = new_pos[2];
+                if (!boundary_test(new_pos) || this->board[l][i][j] != opponent_color)
+                    continue;
+                new_pos[0] += dirs[dir_num][0];
+                new_pos[1] += dirs[dir_num][1];
+                new_pos[2] += dirs[dir_num][2];
+                l = new_pos[0];
+                i = new_pos[1];
+                j = new_pos[2];
+                if (!boundary_test(new_pos) || this->board[l][i][j] != opponent_color)
+                    continue;
+
+                Movement block_move;
+                block_move.l = all_possible_moves[move_num].l;
+                block_move.x = all_possible_moves[move_num].x;
+                block_move.y = all_possible_moves[move_num].y;
+                block_move.color = (this->hands%2==0) ? 1 : 2;
+                block_moves.push_back(block_move);
+            }
+        }
+        srand(time(0));
+        if (!block_moves.empty()) {
+            return block_moves;
+        } else {
+            return all_possible_moves;
+        }
+    }
+
+
 };
 
 class MCTS {
@@ -380,8 +429,8 @@ public:
             this->cur_simulation_cnt++;
             // clock_t end = clock();
             auto end = Time::now();
-            sec duration = Time ::now() - start;
-            if (duration.count() >= (double)(this->max_time_sec))
+            sec duration = Time::now() - start;
+            if (duration.count() >= (double) (this->max_time_sec))
                 break;
             if (this->cur_simulation_cnt >= this->max_simulation_cnt)
                 break;
@@ -403,39 +452,47 @@ public:
         cout << "Simulation cnt: " << this->cur_simulation_cnt << endl;
         return ret;
     }
+
+    static Node *get_init_node() {
+        int b[6][6][6];
+        for (auto &i : b) {
+            for (auto &j : i) {
+                for (int &k : j) {
+                    k = 0;
+                }
+            }
+        }
+        for (auto &k : b) {
+            k[0][0] = -1;
+            k[0][1] = -1;
+            k[0][4] = -1;
+            k[0][5] = -1;
+            k[1][0] = -1;
+            k[1][5] = -1;
+            k[4][0] = -1;
+            k[4][5] = -1;
+            k[5][0] = -1;
+            k[5][1] = -1;
+            k[5][4] = -1;
+            k[5][5] = -1;
+        }
+
+        Properties start_properties(0, 0, 0, 0);
+        Movement move, next_move;
+        Node *start_node = new Node(b, 0, move, start_properties);
+        return start_node;
+    }
+
+
 };
 
 int main() {
     // Init random
     srand(time(nullptr));
 
-    int b[6][6][6];
-    for (auto &i : b) {
-        for (auto &j : i) {
-            for (int &k : j) {
-                k = 0;
-            }
-        }
-    }
-    for (auto &k : b) {
-        k[0][0] = -1;
-        k[0][1] = -1;
-        k[0][4] = -1;
-        k[0][5] = -1;
-        k[1][0] = -1;
-        k[1][5] = -1;
-        k[4][0] = -1;
-        k[4][5] = -1;
-        k[5][0] = -1;
-        k[5][1] = -1;
-        k[5][4] = -1;
-        k[5][5] = -1;
-    }
+    Node *start_node = MCTS::get_init_node();
 
-    Properties start_properties(0, 0, 0, 0);
-    Movement move, next_move;
-    Node *start_node = new Node(b, 0, move, start_properties);
     MCTS mcts(start_node, 9999999, 3);
-    next_move = mcts.run();
+    Movement next_move = mcts.run();
     cout << next_move.l << " " << next_move.x << " " << next_move.y << endl;
 }

@@ -3,6 +3,9 @@
 #include<cmath>
 #include<ctime>
 #include <chrono>
+#include <cstdio>
+#include <cstdlib>
+#include <fstream>
 
 typedef std::chrono::high_resolution_clock Time;
 typedef std::chrono::duration<double> sec;
@@ -409,6 +412,33 @@ public:
         return ret;
     }
 
+    void output_board_string_for_plot_state() {
+        string board_str;
+        for (auto &d : board) {
+            for (auto &i : d) {
+                for (int j : i) {
+                    board_str += " " + to_string(j);
+                }
+            }
+        }
+        board_str += "\n";
+        string output_filename = "board_content_for_plotting.txt";
+        ofstream ofs(output_filename, fstream::trunc);
+        ofs << board_str;
+        ofs.close();
+        cout << "Output board string to \"" << output_filename << "\" done!" << endl;
+    }
+
+    void print_flattened_board() {
+        for (auto &l : this->board) {
+            for (auto &x : l) {
+                for (int y : x) {
+                    cout << y << " ";
+                }
+            }
+        }
+        cout << endl;
+    }
 };
 
 class MCTS {
@@ -417,12 +447,14 @@ public:
     int cur_simulation_cnt;
     int max_simulation_cnt;
     int max_time_sec;
+    bool print_simulation_cnt;
 
-    MCTS(Node *root, int max_simulation_cnt, int max_time_sec) {
+    MCTS(Node *root, int max_simulation_cnt, int max_time_sec, bool print_simulation_cnt) {
         this->root = root;
         this->max_simulation_cnt = max_simulation_cnt;
         this->max_time_sec = max_time_sec;
         this->cur_simulation_cnt = 0;
+        this->print_simulation_cnt = print_simulation_cnt;
     }
 
     Movement run() {
@@ -469,7 +501,9 @@ public:
                 //cout << temp_node->move.l << " " << temp_node->move.x << " " << temp_node->move.y << endl;
             }
         }
-        cout << "Simulation cnt: " << this->cur_simulation_cnt << endl;
+        if (this->print_simulation_cnt) {
+            cout << "Simulation cnt: " << this->cur_simulation_cnt << endl;
+        }
         return ret;
     }
 
@@ -503,30 +537,33 @@ public:
         return start_node;
     }
 
-
+    static Node *get_random_board_node(int step) {
+        Node *cur_node = MCTS::get_init_node();
+        cout << "Getting random board..." << endl;
+        cout << "Move done:";
+        for (int i = 0; i < step; i++) {
+            MCTS mcts(cur_node, 99999, 1, false);
+            Movement move = mcts.run();
+            cout << " " << i + 1 << flush;
+            Node *new_node = cur_node->get_node_after_playing(move);
+            delete cur_node;
+            cur_node = new_node;
+        }
+        cout << " (finished)" << endl;
+        return cur_node;
+    }
 };
 
 int main() {
     // Init random
     srand(time(nullptr));
 
-    Node *cur_node = MCTS::get_init_node();
+//    Node *cur_node = MCTS::get_init_node();
+    Node *cur_node = MCTS::get_random_board_node(10);
+    cur_node->output_board_string_for_plot_state();
 
-    int n = 16;
-    for (int i = 0; i < n; i++) {
-        MCTS mcts(cur_node, 99999, 1);
-        Movement move = mcts.run();
-        cout << move.l << "," << move.x << "," << move.y << endl;
-        cur_node = cur_node->get_node_after_playing(move);
-    }
-    for (int l = 0; l < 6; l++) {
-        for (int x = 0; x < 6; x++) {
-            for (int y = 0; y < 6; y++) {
-                cout << cur_node->board[l][x][y] << " ";
-            }
-        }
-    }
-    cout << endl;
+
+//
 //    vector<Movement> v = start_node->gen_block_move();
 //    for (auto &move: v) {
 //        cout << move.l << ", " << move.x << ", " << move.y << endl;

@@ -5,6 +5,7 @@ import mpl_toolkits
 import matplotlib.pylab as plt
 import matplotlib
 from matplotlib.colors import LinearSegmentedColormap
+import os
 
 # Settings (use matplotlib named colors)
 EMPTY_COLOR = 'lightgray'
@@ -14,6 +15,7 @@ STONE_SIZE = 100
 
 # Constant
 SIDE_LEN = 6
+VOLUME = SIDE_LEN * SIDE_LEN * SIDE_LEN
 MARKER = 'o'
 
 # Example board
@@ -37,19 +39,37 @@ def generate_random_state() -> "np.ndarray":
 if __name__ == "__main__":
     # Check arguments
     if len(sys.argv) <= 1:
-        print('Usage: python3 plot_state.py board[0][0][0] board[0][0][1] ... (216 totally)')
-        print('You did not provide a state, so we make a random state.')
+        print('Custom Board Usage:\n'
+              '    (1) python3 plot_state.py random\n'
+              '    (2) python3 plot_state.py board_string_text_file_path\n'
+              '    (3) python3 plot_state.py board[0][0][0] board[0][0][1] ... ({} totally)'.format(VOLUME))
+        exit(0)
+
+    # Check argc
+    random_state = False
+    if len(sys.argv) == 2 and sys.argv[1] == 'random':
+        # Randomly generate
         state = generate_random_state()
+        random_state = True
+    elif len(sys.argv) == 2:
+        # Read file
+        with open(sys.argv[1], 'r') as file:
+            state = np.array(list(map(int, str(file.read()).strip().split(' ')))).reshape((SIDE_LEN, SIDE_LEN, SIDE_LEN))
     else:
-        # Check argc
         if len(sys.argv) != SIDE_LEN * SIDE_LEN * SIDE_LEN + 1:
-            raise ValueError(
-                "Number of value provided to form a state must be {}.".format(SIDE_LEN * SIDE_LEN * SIDE_LEN))
+            print("Number of value provided to form a state must be {}.".format(SIDE_LEN * SIDE_LEN * SIDE_LEN))
+            exit(1)
         # Gather arguments to make a state
         state = np.array(list(map(int, sys.argv[1:]))).reshape((SIDE_LEN, SIDE_LEN, SIDE_LEN))
 
     # Use example state?
-    state = EXAMPLE_BOARD.reshape((SIDE_LEN, SIDE_LEN, SIDE_LEN))
+    # state = EXAMPLE_BOARD.reshape((SIDE_LEN, SIDE_LEN, SIDE_LEN))
+
+    # Print state
+    print("State:")
+    print(state)
+    
+
 
     # Start to plot
     # Reference: https://jakevdp.github.io/PythonDataScienceHandbook/04.12-three-dimensional-plotting.html
@@ -57,20 +77,17 @@ if __name__ == "__main__":
     ax = plt.axes(projection='3d')
 
     # Remove those empty positions that are on other empty positions (set them to be illegal(-1))
-    print(state)
-    for x in range(SIDE_LEN):
-        for y in range(SIDE_LEN):
-            if state[0][x][y] == -1:
-                continue
-            find_empty = False
-            for z in range(SIDE_LEN):
-                if find_empty:
-                    state[z][x][y] = -1
-                elif state[z][x][y] == 0:
-                    find_empty = True
-
-    print(state)
-    # exit(1)
+    if not random_state:
+        for x in range(SIDE_LEN):
+            for y in range(SIDE_LEN):
+                if state[0][x][y] == -1:
+                    continue
+                find_empty = False
+                for z in range(SIDE_LEN):
+                    if find_empty:
+                        state[z][x][y] = -1
+                    elif state[z][x][y] == 0:
+                        find_empty = True
 
     # Data for three-dimensional scattered points
     l_data = []

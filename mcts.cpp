@@ -338,7 +338,7 @@ public:
 
     vector<Movement> gen_block_move() {
         vector<Movement> all_possible_moves = this->get_next_possible_move();
-        int opponent_color = (this->hands%2==0) ? 2 : 1;
+        int opponent_color = (this->hands % 2 == 0) ? 2 : 1;
         int dirs[26][3];
         int cnt = 0;
         for (int l = -1; l <= 1; l++) {
@@ -377,7 +377,7 @@ public:
                 block_move.l = all_possible_moves[move_num].l;
                 block_move.x = all_possible_moves[move_num].x;
                 block_move.y = all_possible_moves[move_num].y;
-                block_move.color = (this->hands%2==0) ? 1 : 2;
+                block_move.color = (this->hands % 2 == 0) ? 1 : 2;
                 block_moves.push_back(block_move);
             }
         }
@@ -389,6 +389,25 @@ public:
         }
     }
 
+    Node *get_node_after_playing(Movement next_move) {
+        int temp_board[6][6][6];
+        for (int i = 0; i < 6; i++) {
+            for (int j = 0; j < 6; j++) {
+                for (int k = 0; k < 6; k++) {
+                    temp_board[i][j][k] = this->board[i][j][k];
+                }
+            }
+        }
+        int color = (hands % 2 == 0) ? 1 : 2;
+        next_move.color = color;
+        vector<Movement> movements;
+        movements.clear();
+        movements.push_back(next_move);
+        Properties new_properties = get_state_properties_b(temp_board, this->my_properties, movements);
+        temp_board[next_move.l][next_move.x][next_move.y] = color;
+        Node *ret = new Node(temp_board, this->hands + 1, next_move, new_properties);
+        return ret;
+    }
 
 };
 
@@ -407,6 +426,7 @@ public:
     }
 
     Movement run() {
+        this->cur_simulation_cnt = 0;
         this->root->is_root = true;
 
         // Time example:
@@ -490,9 +510,30 @@ int main() {
     // Init random
     srand(time(nullptr));
 
-    Node *start_node = MCTS::get_init_node();
+    Node *cur_node = MCTS::get_init_node();
 
-    MCTS mcts(start_node, 9999999, 3);
-    Movement next_move = mcts.run();
-    cout << next_move.l << " " << next_move.x << " " << next_move.y << endl;
+    int n = 16;
+    for (int i = 0; i < n; i++) {
+        MCTS mcts(cur_node, 99999, 1);
+        Movement move = mcts.run();
+        cout << move.l << "," << move.x << "," << move.y << endl;
+        cur_node = cur_node->get_node_after_playing(move);
+    }
+    for (int l = 0; l < 6; l++) {
+        for (int x = 0; x < 6; x++) {
+            for (int y = 0; y < 6; y++) {
+                cout << cur_node->board[l][x][y] << " ";
+            }
+        }
+    }
+    cout << endl;
+//    vector<Movement> v = start_node->gen_block_move();
+//    for (auto &move: v) {
+//        cout << move.l << ", " << move.x << ", " << move.y << endl;
+//    }
+//    cout << "Total: " << v.size() << " moves." << endl;
+
+//    MCTS mcts(start_node, 9999999, 3);
+//    Movement next_move = mcts.run();
+//    cout << next_move.l << " " << next_move.x << " " << next_move.y << endl;
 }

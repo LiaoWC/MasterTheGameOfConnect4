@@ -162,8 +162,10 @@ public:
     int value_sum;
     bool is_leaf;
     bool is_root;
+//    vector<unique_ptr<Node>> children;
     vector<Node *> children;
     Properties my_properties;
+//    unique_ptr<Node> parent;
     Node *parent{};
 
 
@@ -359,8 +361,8 @@ public:
             }
         }
         vector<Movement> block_moves;
-        for (auto & all_possible_move : all_possible_moves) {
-            for (auto & dir : dirs) {
+        for (auto &all_possible_move : all_possible_moves) {
+            for (auto &dir : dirs) {
                 int *new_pos = new int[3];
                 new_pos[0] = all_possible_move.l + dir[0];
                 new_pos[1] = all_possible_move.x + dir[1];
@@ -544,7 +546,7 @@ public:
         cout << "Getting random board..." << endl;
         cout << "Move done:";
         for (int i = 0; i < step; i++) {
-            MCTS mcts(cur_node, 99999, 1, false);
+            MCTS mcts(cur_node, 99999, 3, true);
             Movement move = mcts.run();
             cout << " " << i + 1 << flush;
             Node *new_node = cur_node->get_node_after_playing(move);
@@ -567,7 +569,7 @@ int main() {
     for (auto item : movements) {
         item.print_movement();
     }
-    system("python3 plot_state.py board_plot_command.txt");
+//    system("python3 plot_state.py board_plot_command.txt");
 
 
 
@@ -577,8 +579,14 @@ int main() {
 //        cout << move.l << ", " << move.x << ", " << move.y << endl;
 //    }
 //    cout << "Total: " << v.size() << " moves." << endl;
+//
 
-//    MCTS mcts(start_node, 9999999, 3);
+//    MCTS mcts(cur_node, 9999999, 3, true);
+//    mcts.run();
+//    cout << "Done" << endl;
+
+
 //    Movement next_move = mcts.run();
 //    cout << next_move.l << " " << next_move.x << " " << next_move.y << endl;
+
 }

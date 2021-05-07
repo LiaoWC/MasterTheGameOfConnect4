@@ -1,6 +1,7 @@
 # 
 
-## TODO
+## TODO / Direction?
+- [ ] Multi-threads/processes??? 
 
 ## Print board
 ![](./img/Figure_1.png)

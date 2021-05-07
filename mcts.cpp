@@ -1,15 +1,20 @@
 #include<iostream>
+#include <utility>
 #include<vector>
 #include<cmath>
 #include<ctime>
 #include <chrono>
 #include <cstdlib>
+#include <unistd.h> // Comment when on Windows
 #include <fstream>
 #include <memory>
+#include <array>
 
 typedef std::chrono::high_resolution_clock Time;
 typedef std::chrono::duration<double> sec;
 using namespace std;
+
+class Node;
 
 double ucb(int child_visiting_count,
            int winning_count,
@@ -43,7 +48,7 @@ public:
     }
 
     void print_movement() const {
-        cout << "[" << l << ", " << x << ", " << y << endl;
+        cout << "[" << l << ", " << x << ", " << y << "]" << endl;
     }
 };
 
@@ -68,7 +73,7 @@ public:
     }
 };
 
-bool boundary_test(const int coordinate[3]) {
+bool boundary_test(const unique_ptr<int[]> &coordinate) {
     for (int i = 0; i < 3; i++)
         if (coordinate[i] < 0 || coordinate[i] >= 6)
             return false;
@@ -76,6 +81,7 @@ bool boundary_test(const int coordinate[3]) {
 }
 
 
+//Properties get_state_properties_b(array<array<array<int,6>,6>,6> start_state,
 Properties get_state_properties_b(int start_state[6][6][6],
                                   Properties start_state_properties,
                                   const vector<Movement> &movements) {
@@ -116,7 +122,7 @@ Properties get_state_properties_b(int start_state[6][6][6],
         for (auto &dir : dirs) {
             int cnt = 1;
             for (int mul = 1; mul < 3; mul++) {
-                int *temp_coordinate = new int[3];
+                unique_ptr<int[]> temp_coordinate(new int[3]);
                 temp_coordinate[0] = l + dir[0] * mul;
                 temp_coordinate[1] = i + dir[1] * mul;
                 temp_coordinate[2] = j + dir[2] * mul;
@@ -127,7 +133,7 @@ Properties get_state_properties_b(int start_state[6][6][6],
                 cnt += 1;
             }
             for (int mul = 1; mul < 3; mul++) {
-                int *temp_coordinate = new int[3];
+                unique_ptr<int[]> temp_coordinate(new int[3]);
                 temp_coordinate[0] = l + dir[0] * -mul;
                 temp_coordinate[1] = i + dir[1] * -mul;
                 temp_coordinate[2] = j + dir[2] * -mul;
@@ -153,7 +159,7 @@ Properties get_state_properties_b(int start_state[6][6][6],
     return temp_properties;
 }
 
-class Node {
+class Node : public std::enable_shared_from_this<Node> {
 public:
     int board[6][6][6]{};
     int hands;
@@ -162,12 +168,9 @@ public:
     int value_sum;
     bool is_leaf;
     bool is_root;
-//    vector<unique_ptr<Node>> children;
-    vector<Node *> children;
+    vector<shared_ptr<Node>> children;
     Properties my_properties;
-//    unique_ptr<Node> parent;
-    Node *parent{};
-
+    weak_ptr<Node> parent;
 
     Node(int board[6][6][6],
          int hands,
@@ -189,20 +192,23 @@ public:
         this->is_leaf = true;
         this->is_root = false;
         children.clear();
+    }
 
+    ~Node() {
+        children.clear();
     }
 
 
-    Node *select() {
-        Node *cur = this;
+    shared_ptr<Node> select() {
+        shared_ptr<Node> cur = shared_from_this();
         while (true) {
             if (cur->is_leaf)
                 return cur;
             else {
                 double p = -1;
-                Node *next_node = cur;
+                shared_ptr<Node> next_node = cur;
                 for (int i = 0; i < cur->children.size(); i++) {
-                    Node *temp_node = cur->children[i];
+                    shared_ptr<Node> temp_node = cur->children[i];
                     double temp_p = ucb(temp_node->visiting_count, temp_node->value_sum, cur->visiting_count);
                     if (temp_p > p) {
                         p = temp_p;
@@ -240,11 +246,9 @@ public:
             movements.push_back(temp_move);
             Properties new_properties = get_state_properties_b(temp_board, this->my_properties, movements);
             temp_board[temp_move.l][temp_move.x][temp_move.y] = color;
-            Node *new_child;
-            new_child = new Node(temp_board, this->hands + 1, temp_move, new_properties);
+            shared_ptr<Node> new_child = make_shared<Node>(temp_board, this->hands + 1, temp_move, new_properties);
             this->children.push_back(new_child);
-            new_child->parent = this;
-
+            new_child->parent = shared_from_this();
         }
     }
 
@@ -290,7 +294,7 @@ public:
 
 
     void backup(int reward) {
-        Node *cur = this;
+        shared_ptr<Node> cur = shared_from_this();
         bool flag = true;
         if (reward == 1) {
             while (true) {
@@ -303,7 +307,12 @@ public:
                 cur->visiting_count++;
                 if (cur->is_root)
                     break;
-                cur = cur->parent;
+                // Weak ptr
+                if (auto p = cur->parent.lock()) {
+                    cur = p;
+                } else {
+                    perror("Backup function cur->parent.lock() No.1 failed.");
+                }
             }
         } else {
             while (true) {
@@ -317,7 +326,12 @@ public:
                 cur->visiting_count += 1;
                 if (cur->is_root)
                     break;
-                cur = cur->parent;
+                // Weak ptr
+                if (auto p = cur->parent.lock()) {
+                    cur = p;
+                } else {
+                    perror("Backup function cur->parent.lock() No.2 failed.");
+                }
             }
         }
     }
@@ -363,7 +377,7 @@ public:
         vector<Movement> block_moves;
         for (auto &all_possible_move : all_possible_moves) {
             for (auto &dir : dirs) {
-                int *new_pos = new int[3];
+                unique_ptr<int[]> new_pos(new int[3]);
                 new_pos[0] = all_possible_move.l + dir[0];
                 new_pos[1] = all_possible_move.x + dir[1];
                 new_pos[2] = all_possible_move.y + dir[2];
@@ -396,7 +410,7 @@ public:
         }
     }
 
-    Node *get_node_after_playing(Movement next_move) {
+    shared_ptr<Node> get_node_after_playing(Movement next_move) {
         int temp_board[6][6][6];
         for (int i = 0; i < 6; i++) {
             for (int j = 0; j < 6; j++) {
@@ -412,7 +426,7 @@ public:
         movements.push_back(next_move);
         Properties new_properties = get_state_properties_b(temp_board, this->my_properties, movements);
         temp_board[next_move.l][next_move.x][next_move.y] = color;
-        Node *ret = new Node(temp_board, this->hands + 1, next_move, new_properties);
+        shared_ptr<Node> ret = make_shared<Node>(temp_board, this->hands + 1, next_move, new_properties);
         return ret;
     }
 
@@ -447,14 +461,14 @@ public:
 
 class MCTS {
 public:
-    Node *root;
+    shared_ptr<Node> root;
     int cur_simulation_cnt;
     int max_simulation_cnt;
     int max_time_sec;
     bool print_simulation_cnt;
 
-    MCTS(Node *root, int max_simulation_cnt, int max_time_sec, bool print_simulation_cnt) {
-        this->root = root;
+    MCTS(shared_ptr<Node> root, int max_simulation_cnt, int max_time_sec, bool print_simulation_cnt) {
+        this->root = std::move(root);
         this->max_simulation_cnt = max_simulation_cnt;
         this->max_time_sec = max_time_sec;
         this->cur_simulation_cnt = 0;
@@ -475,7 +489,7 @@ public:
         auto start = Time::now();
         while (true) {
             //cout << 1 << endl;
-            Node *temp_node = this->root->select();
+            shared_ptr<Node> temp_node = this->root->select();
             //cout << 2 << endl;
             temp_node->expand();
             //cout << 3 << endl;
@@ -493,7 +507,7 @@ public:
         }
         double winning_rate = 0;
         Movement ret;
-        for (auto temp_node : this->root->children) {
+        for (const auto &temp_node : this->root->children) {
             if (temp_node->visiting_count == 0)
                 continue;
             //cout << temp_node->value_sum << " " << temp_node->visiting_count << endl;
@@ -511,7 +525,7 @@ public:
         return ret;
     }
 
-    static Node *get_init_node() {
+    static shared_ptr<Node> get_init_node() {
         int b[6][6][6];
         for (auto &i : b) {
             for (auto &j : i) {
@@ -537,24 +551,27 @@ public:
 
         Properties start_properties(0, 0, 0, 0);
         Movement move, next_move;
-        Node *start_node = new Node(b, 0, move, start_properties);
+        shared_ptr<Node> start_node = make_shared<Node>(b, 0, move, start_properties);
         return start_node;
     }
 
-    static Node *get_random_board_node(int step) {
-        Node *cur_node = MCTS::get_init_node();
+    static shared_ptr<Node> get_random_board_node(int step, int max_simulation_cnt, int max_simulation_time) {
+        shared_ptr<Node> cur_node = MCTS::get_init_node();
         cout << "Getting random board..." << endl;
-        cout << "Move done:";
+        cout << "Move done:" << endl;
         for (int i = 0; i < step; i++) {
-            MCTS mcts(cur_node, 99999, 3, true);
+            MCTS mcts(cur_node, max_simulation_cnt, max_simulation_time, true);
+            cout << i + 1 << " " << flush;
             Movement move = mcts.run();
-            cout << " " << i + 1 << flush;
-            Node *new_node = cur_node->get_node_after_playing(move);
-            delete cur_node;
+            shared_ptr<Node> new_node = cur_node->get_node_after_playing(move);
             cur_node = new_node;
         }
-        cout << " (finished)" << endl;
+        cout << " (finished) " << endl;
         return cur_node;
+    }
+
+    ~MCTS() {
+        root.reset();
     }
 };
 
@@ -562,15 +579,15 @@ int main() {
     // Init random
     srand(time(nullptr));
 
-//    Node *cur_node = MCTS::get_init_node();
-    Node *cur_node = MCTS::get_random_board_node(30);
+    // shared_ptr<Node> cur_node = MCTS::get_init_node();
+    shared_ptr<Node> cur_node = MCTS::get_random_board_node(32, 99999, 4);
+
     cur_node->output_board_string_for_plot_state();
     auto movements = cur_node->gen_block_move();
     for (auto item : movements) {
         item.print_movement();
     }
-//    system("python3 plot_state.py board_plot_command.txt");
-
+    system("python3 plot_state.py board_content_for_plotting.txt");
 
 
 //

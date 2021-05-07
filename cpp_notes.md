@@ -1,6 +1,8 @@
 # Notes about C/C++
 
 ## C++ Shared Point Demo & Comparison with Conventional Raw Pointer
+C++ smart pointers reference: https://www.geeksforgeeks.org/auto_ptr-unique_ptr-shared_ptr-weak_ptr-2/
+
 ```c++
 #include <chrono>
 #include <iostream>

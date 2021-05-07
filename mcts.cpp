@@ -3,15 +3,13 @@
 #include<cmath>
 #include<ctime>
 #include <chrono>
-#include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <memory>
 
 typedef std::chrono::high_resolution_clock Time;
 typedef std::chrono::duration<double> sec;
-
 using namespace std;
-
 
 double ucb(int child_visiting_count,
            int winning_count,
@@ -42,6 +40,10 @@ public:
         this->x = x;
         this->y = y;
         this->color = color;
+    }
+
+    void print_movement() const {
+        cout << "[" << l << ", " << x << ", " << y << endl;
     }
 };
 
@@ -328,8 +330,8 @@ public:
                     continue;
                 for (int l = 0; l < 6; l++) {
                     if (this->board[l][i][j] == 0) {
-                        Movement move(l, i, j, 0);
-                        ret.push_back(move);
+                        Movement move_tmp(l, i, j, 0);
+                        ret.push_back(move_tmp);
                         break;
                     }
                 }
@@ -357,19 +359,19 @@ public:
             }
         }
         vector<Movement> block_moves;
-        for (int move_num = 0; move_num < all_possible_moves.size(); move_num++) {
-            for (int dir_num = 0; dir_num < 26; dir_num++) {
+        for (auto & all_possible_move : all_possible_moves) {
+            for (auto & dir : dirs) {
                 int *new_pos = new int[3];
-                new_pos[0] = all_possible_moves[move_num].l + dirs[dir_num][0];
-                new_pos[1] = all_possible_moves[move_num].x + dirs[dir_num][1];
-                new_pos[2] = all_possible_moves[move_num].y + dirs[dir_num][2];
+                new_pos[0] = all_possible_move.l + dir[0];
+                new_pos[1] = all_possible_move.x + dir[1];
+                new_pos[2] = all_possible_move.y + dir[2];
 
                 int l = new_pos[0], i = new_pos[1], j = new_pos[2];
                 if (!boundary_test(new_pos) || this->board[l][i][j] != opponent_color)
                     continue;
-                new_pos[0] += dirs[dir_num][0];
-                new_pos[1] += dirs[dir_num][1];
-                new_pos[2] += dirs[dir_num][2];
+                new_pos[0] += dir[0];
+                new_pos[1] += dir[1];
+                new_pos[2] += dir[2];
                 l = new_pos[0];
                 i = new_pos[1];
                 j = new_pos[2];
@@ -377,14 +379,14 @@ public:
                     continue;
 
                 Movement block_move;
-                block_move.l = all_possible_moves[move_num].l;
-                block_move.x = all_possible_moves[move_num].x;
-                block_move.y = all_possible_moves[move_num].y;
+                block_move.l = all_possible_move.l;
+                block_move.x = all_possible_move.x;
+                block_move.y = all_possible_move.y;
                 block_move.color = (this->hands % 2 == 0) ? 1 : 2;
                 block_moves.push_back(block_move);
             }
         }
-        srand(time(0));
+        srand(time(nullptr));
         if (!block_moves.empty()) {
             return block_moves;
         } else {
@@ -559,8 +561,14 @@ int main() {
     srand(time(nullptr));
 
 //    Node *cur_node = MCTS::get_init_node();
-    Node *cur_node = MCTS::get_random_board_node(10);
+    Node *cur_node = MCTS::get_random_board_node(30);
     cur_node->output_board_string_for_plot_state();
+    auto movements = cur_node->gen_block_move();
+    for (auto item : movements) {
+        item.print_movement();
+    }
+    system("python3 plot_state.py board_plot_command.txt");
+
 
 
 //

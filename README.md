@@ -22,7 +22,9 @@ Instructions:
     # (3)
     python3 plot_state.py board[0][0][0] board[0][0][1] ... (size length * size length * size length values totally)  
     ```
-
+Gray is the legal next movement.  
+Blue is black-player.  
+Yellow is white-player.  
 
 
 ### Random

@@ -66,8 +66,8 @@ if __name__ == "__main__":
     # state = EXAMPLE_BOARD.reshape((SIDE_LEN, SIDE_LEN, SIDE_LEN))
 
     # Print state
-    print("State:")
-    print(state)
+    # print("State:")
+    # print(state)
     
 
 

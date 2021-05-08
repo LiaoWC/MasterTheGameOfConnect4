@@ -431,20 +431,13 @@ public:
                 }
             }
         }
-        if(ret.size()>24){
-            cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" <<endl;
-            cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" <<endl;
-            cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" <<endl;
-            cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" <<endl;
-            cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" <<endl;
-        }
         return ret;
     }
-
 
     vector<Movement> gen_block_move() {
         vector<Movement> all_possible_moves = this->get_next_possible_move();
         int opponent_color = (this->hands % 2 == 0) ? 2 : 1;
+        int self_color = (this->hands % 2 == 0) ? 1 : 2;
         int dirs[26][3];
         int cnt = 0;
         for (int l = -1; l <= 1; l++) {
@@ -462,29 +455,56 @@ public:
         vector<Movement> block_moves;
         for (auto &all_possible_move : all_possible_moves) {
             for (auto &dir : dirs) {
-                unique_ptr<int[]> new_pos(new int[3]);
-                new_pos[0] = all_possible_move.l + dir[0];
-                new_pos[1] = all_possible_move.x + dir[1];
-                new_pos[2] = all_possible_move.y + dir[2];
+                unique_ptr<int[]> new_pos_a(new int[3]);
+                new_pos_a[0] = all_possible_move.l + dir[0];
+                new_pos_a[1] = all_possible_move.x + dir[1];
+                new_pos_a[2] = all_possible_move.y + dir[2];
 
-                int l = new_pos[0], i = new_pos[1], j = new_pos[2];
-                if (!boundary_test(new_pos) || this->board[l][i][j] != opponent_color)
-                    continue;
-                new_pos[0] += dir[0];
-                new_pos[1] += dir[1];
-                new_pos[2] += dir[2];
-                l = new_pos[0];
-                i = new_pos[1];
-                j = new_pos[2];
-                if (!boundary_test(new_pos) || this->board[l][i][j] != opponent_color)
-                    continue;
+                unique_ptr<int[]> new_pos_b(new int[3]);
+                new_pos_b[0] = all_possible_move.l + dir[0];
+                new_pos_b[1] = all_possible_move.x + dir[1];
+                new_pos_b[2] = all_possible_move.y + dir[2];
+                int l = new_pos_b[0], i = new_pos_b[1], j = new_pos_b[2];
+                if (boundary_test(new_pos_b) && this->board[l][i][j] == self_color) {
+                    new_pos_b[0] += dir[0];
+                    new_pos_b[1] += dir[1];
+                    new_pos_b[2] += dir[2];
+                    l = new_pos_b[0];
+                    i = new_pos_b[1];
+                    j = new_pos_b[2];
+                    if (boundary_test(new_pos_b) && this->board[l][i][j] == self_color) {
+                        int k = 10;
+                        while (k > 0) {
+                            Movement block_move_b;
+                            block_move_b.l = all_possible_move.l;
+                            block_move_b.x = all_possible_move.x;
+                            block_move_b.y = all_possible_move.y;
+                            block_move_b.color = self_color;
+                            block_moves.push_back(block_move_b);
+                            k--;
+                        }
+                    }
+                }
 
-                Movement block_move;
-                block_move.l = all_possible_move.l;
-                block_move.x = all_possible_move.x;
-                block_move.y = all_possible_move.y;
-                block_move.color = (this->hands % 2 == 0) ? 1 : 2;
-                block_moves.push_back(block_move);
+                l = new_pos_a[0];
+                i = new_pos_a[1];
+                j = new_pos_a[2];
+                if (!boundary_test(new_pos_a) || this->board[l][i][j] != opponent_color)
+                    continue;
+                new_pos_a[0] += dir[0];
+                new_pos_a[1] += dir[1];
+                new_pos_a[2] += dir[2];
+                l = new_pos_a[0];
+                i = new_pos_a[1];
+                j = new_pos_a[2];
+                if (!boundary_test(new_pos_a) || this->board[l][i][j] != opponent_color)
+                    continue;
+                Movement block_move_a;
+                block_move_a.l = all_possible_move.l;
+                block_move_a.x = all_possible_move.x;
+                block_move_a.y = all_possible_move.y;
+                block_move_a.color = self_color;
+                block_moves.push_back(block_move_a);
             }
         }
         srand(time(nullptr));
@@ -494,6 +514,7 @@ public:
             return all_possible_moves;
         }
     }
+
 
     shared_ptr<Node> get_node_after_playing(Movement next_move) {
         int temp_board[6][6][6];
@@ -512,19 +533,6 @@ public:
         Properties new_properties = get_state_properties_b(temp_board, this->my_properties, movements);
         temp_board[next_move.l][next_move.x][next_move.y] = color;
         shared_ptr<Node> ret = make_shared<Node>(temp_board, this->hands + 1, next_move, new_properties);
-
-        int board[6][6][6]{};
-        int hands;
-        Movement move;
-        int visiting_count;
-        int value_sum;
-        bool is_leaf;
-        bool is_root;
-        vector<shared_ptr<Node>> children;
-        Properties my_properties;
-        weak_ptr<Node> parent;
-
-
         return ret;
     }
 
@@ -704,7 +712,6 @@ public:
             double value_mean = (double) temp_node->value_sum / (double) temp_node->visiting_count;
             //cout << temp_winning_rate << endl;
             if (value_mean > winning_rate) {
-                cout << "&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&"<<endl;
                 winning_rate = value_mean;
                 ret = temp_node->move;
                 //cout << temp_node->move.l << " " << temp_node->move.x << " " << temp_node->move.y << endl;
@@ -836,7 +843,7 @@ int main() {
     // Fight
     string fight_record_dir = "fight_dir";
     int max_simulation_cnt = 999999;
-    int max_simulation_time = 3;
+    int max_simulation_time = 20;
     shared_ptr<Node> cur_node = MCTS::get_init_node();
     for (int i = 0; i < 64; i += 2) {
         cout << "================ i = " << i << " =================" << endl;
@@ -846,7 +853,7 @@ int main() {
 
         // Black's turn
         MCTS mcts_black(cur_node, max_simulation_cnt, max_simulation_time, true);
-        move = mcts_black.run(false, true, true);
+        move = mcts_black.run(false, false, true);
         cur_node = cur_node->get_node_after_playing(move);
         cur_node->my_properties.print_properties();
 
@@ -868,7 +875,7 @@ int main() {
 
         // White's turn
         MCTS mcts_white(cur_node, max_simulation_cnt, max_simulation_time, true);
-        move = mcts_white.run(false, true, true);
+        move = mcts_white.run(false, false, true);
         cur_node = cur_node->get_node_after_playing(move);
         cur_node->my_properties.print_properties();
 

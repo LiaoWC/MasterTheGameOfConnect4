@@ -65,21 +65,36 @@ public:
     int x{};
     int y{};
     int color{};
+    double prior{};
+    double base_c{};
 
-    Movement() = default;
+    Movement() {
+        this->l = 0;
+        this->x = 0;
+        this->y = 0;
+        this->color = 0;
+        this->prior = 0;
+        this->base_c = 0.05;
+    };
 
     Movement(int l, int x, int y, int color) {
         this->l = l;
         this->x = x;
         this->y = y;
         this->color = color;
+        this->prior = 0;
+        this->base_c = 0.05;
+    }
+
+    void config_c(double newc) {
+        this->base_c = newc;
     }
 
     void print_movement() const {
         cout << "[" << l << ", " << x << ", " << y << "]" << endl;
     }
 
-    friend bool operator==(const Movement &m1, const Movement &m2);
+    friend bool operator==(const Movement& m1, const Movement& m2);
 };
 
 
@@ -333,6 +348,7 @@ public:
             movements.clear();
             movements.push_back(temp_move);
             Properties new_properties = get_state_properties_b(temp_board, this->my_properties, movements);
+
             ///////////////////////////////////////////////////////
             // DOMINANT PRUNING
             ///////////////////////////////////////////////////////
@@ -412,6 +428,10 @@ public:
             return EXPAND_NOT_PRUNE_PARENT;
         }
 
+        // TODO: This section seems to have bug.
+        //       We find a case occurs:
+        //              All root children's visit cnt are all zero but here it didn't return EXPAND_ROOT_HAS_NO_CHILD_AFTER_PRUNED
+        //       To ensure
         if (dominant_pruning && parent_node_is_root) {
             // Check if parent has no child after being pruned
             bool has_child = false;
@@ -561,6 +581,7 @@ public:
     }
 
     vector<Movement> gen_block_move() {
+        bool flag = true;
         vector<Movement> all_possible_moves = this->get_next_possible_move();
         int opponent_color = (this->hands % 2 == 0) ? 2 : 1;
         int self_color = (this->hands % 2 == 0) ? 1 : 2;
@@ -579,8 +600,9 @@ public:
             }
         }
         vector<Movement> block_moves;
-        for (auto &all_possible_move : all_possible_moves) {
-            for (auto &dir : dirs) {
+        for (auto& all_possible_move : all_possible_moves) {
+            flag = true;
+            for (auto& dir : dirs) {
                 unique_ptr<int[]> new_pos_a(new int[3]);
                 new_pos_a[0] = all_possible_move.l + dir[0];
                 new_pos_a[1] = all_possible_move.x + dir[1];
@@ -599,16 +621,14 @@ public:
                     i = new_pos_b[1];
                     j = new_pos_b[2];
                     if (boundary_test(new_pos_b) && this->board[l][i][j] == self_color) {
-                        int k = 10;
-                        while (k > 0) {
-                            Movement block_move_b;
-                            block_move_b.l = all_possible_move.l;
-                            block_move_b.x = all_possible_move.x;
-                            block_move_b.y = all_possible_move.y;
-                            block_move_b.color = self_color;
-                            block_moves.push_back(block_move_b);
-                            k--;
-                        }
+                        Movement block_move_b;
+                        block_move_b.l = all_possible_move.l;
+                        block_move_b.x = all_possible_move.x;
+                        block_move_b.y = all_possible_move.y;
+                        block_move_b.color = self_color;
+                        block_move_b.prior += block_move_b.base_c * 2;
+                        block_moves.push_back(block_move_b);
+                        flag = false;
                     }
                 }
 
@@ -630,17 +650,22 @@ public:
                 block_move_a.x = all_possible_move.x;
                 block_move_a.y = all_possible_move.y;
                 block_move_a.color = self_color;
+                block_move_a.prior += block_move_a.base_c;
                 block_moves.push_back(block_move_a);
+                flag = false;
+            }
+            if (flag) {
+                Movement block_move;
+                block_move.l = all_possible_move.l;
+                block_move.x = all_possible_move.x;
+                block_move.y = all_possible_move.y;
+                block_move.color = self_color;
+                block_moves.push_back(block_move);
             }
         }
         srand(time(nullptr));
-        if (!block_moves.empty()) {
-            return block_moves;
-        } else {
-            return all_possible_moves;
-        }
+        return block_moves;
     }
-
 
     shared_ptr<Node> get_node_after_playing(Movement next_move) {
         int temp_board[6][6][6];
@@ -869,6 +894,7 @@ public:
         if (root_has_no_child_since_all_are_pruned) {
             auto moves = this->root->get_next_possible_move();
             int rand_num = rand() % moves.size();
+            cout << "HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHh" << endl;
             return moves[rand_num];
         }
 
@@ -876,8 +902,10 @@ public:
         double winning_rate = NEG_INFINITE;
         Movement ret;
         for (const auto &temp_node : this->root->children) {
-            if (temp_node->visiting_count == 0)
+            if (temp_node->visiting_count == 0) {
+                cout << "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE" << endl;
                 continue;
+            }
             //cout << temp_node->value_sum << " " << temp_node->visiting_count << endl;
             double value_mean = (double) temp_node->value_sum / (double) temp_node->visiting_count;
             //cout << temp_winning_rate << endl;
@@ -887,6 +915,7 @@ public:
                 //cout << temp_node->move.l << " " << temp_node->move.x << " " << temp_node->move.y << endl;
             }
         }
+
         return ret;
     }
 
@@ -1010,7 +1039,7 @@ int main() {
     // Fight
     string fight_record_dir = "fight_dir";
     int max_simulation_cnt = 99999999;
-    int max_simulation_time = 4;
+    int max_simulation_time = 2;
     bool plot_state_instantly = true;
     shared_ptr<Node> cur_node = MCTS::get_init_node();
     for (int i = 0; i < 64; i += 2) {

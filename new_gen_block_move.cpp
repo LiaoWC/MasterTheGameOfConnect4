@@ -84,3 +84,41 @@ vector<Movement> gen_block_move() {
         srand(time(nullptr));
         return block_moves;
     }
+
+class Movement {
+public:
+    int l{};
+    int x{};
+    int y{};
+    int color{};
+    double p{};
+    double c{};
+
+    Movement() {
+        this->l = 0;
+        this->x = 0;
+        this->y = 0;
+        this->color = 0;
+        this->p = 0;
+        this->c = 0.05;
+    };
+
+    Movement(int l, int x, int y, int color) {
+        this->l = l;
+        this->x = x;
+        this->y = y;
+        this->color = color;
+        this->p = 0;
+        this->c = 0.05;
+    }
+
+    void config_c(double newc) {
+        this->c = newc;
+    }
+
+    void print_movement() const {
+        cout << "[" << l << ", " << x << ", " << y << "]" << endl;
+    }
+
+    friend bool operator==(const Movement& m1, const Movement& m2);
+};

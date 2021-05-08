@@ -13,6 +13,14 @@
 #include <iomanip>
 
 #define  NEG_INFINITE -9999999
+#define ILLEGAL_COLOR = -1
+#define EMPTY_COLOR 0
+#define BLACK_PLAYER_COLOR 1
+#define WHITE_PLAYER_COLOR 2
+// For expand's return value
+#define EXPAND_NOT_PRUNE_PARENT 1
+#define EXPAND_PRUNE_PARENT 2
+#define EXPAND_ROOT_HAS_NO_CHILD_AFTER_PRUNED 3
 
 typedef std::chrono::high_resolution_clock Time;
 typedef std::chrono::duration<double> sec;
@@ -127,6 +135,23 @@ bool boundary_test(const unique_ptr<int[]> &coordinate) {
 Properties get_state_properties_b(int start_state[6][6][6],
                                   Properties start_state_properties,
                                   const vector<Movement> &movements) {
+    cout << "!!!!! SSSSSSSSSSSSTSRT " << endl;
+    for (int i = 0; i < 6; i++) {
+        for (int j = 0; j < 6; j++) {
+            for (int k = 0; k < 6; k++) {
+                cout << setw(5) << start_state[i][j][k] << " ";
+            }
+            cout << endl;
+        }
+        cout << endl;
+    }
+    start_state_properties.print_properties();
+    cout << "&&&&&&&&&&&&&&&&&&&" << endl;
+    for (auto item: movements) {
+        item.print_movement();
+    }
+    cout << "&&&&&&&&&&&&&&&&&&&" << endl;
+
     int dirs[13][3] = {
             {0,  0,  1},
             {0,  1,  0},
@@ -200,6 +225,9 @@ Properties get_state_properties_b(int start_state[6][6][6],
         }
         temp_state[l][i][j] = c;
     }
+    cout << "@@@@@@@@@@@@@@@@" << endl;
+    temp_properties.print_properties();
+    cout << "@@@@@@@@@@@@@@" << endl;
     return temp_properties;
 }
 
@@ -212,6 +240,8 @@ public:
     int value_sum;
     bool is_leaf;
     bool is_root;
+    bool is_terminated; // Prevent from doing expanding
+    bool is_pruned; // Prevent from being selected
     vector<shared_ptr<Node>> children;
     Properties my_properties;
     weak_ptr<Node> parent;
@@ -235,6 +265,8 @@ public:
         this->value_sum = 0;
         this->is_leaf = true;
         this->is_root = false;
+        this->is_terminated = false;
+        this->is_pruned = false;
         children.clear();
     }
 
@@ -253,7 +285,13 @@ public:
                 vector<double> ucb_results;
                 for (unsigned int i = 0; i < cur->children.size(); i++) {
                     shared_ptr<Node> temp_node = cur->children[i];
-                    double ucb_result = ucb(temp_node->visiting_count, temp_node->value_sum, cur->visiting_count);
+                    double ucb_result;
+                    if (temp_node->is_pruned) {
+                        ucb_result = NEG_INFINITE;
+                    } else {
+                        ucb_result = ucb(temp_node->visiting_count, temp_node->value_sum, cur->visiting_count);
+                    }
+
                     ucb_results.emplace_back(ucb_result);
                     if (ucb_result > cur_max_ucb_result) {
                         cur_max_ucb_result = ucb_result;
@@ -272,16 +310,56 @@ public:
         }
     }
 
-    void expand() {
+    int expand(bool dominant_pruning) {
+        cout << endl << endl;
+        cout << "ccccccccccccccccccccccccccccccccc" << endl;
+        cout << "ccccccccccccccccccccccccccccccccc" << endl;
+        cout << "ccccccccccccccccccccccccccccccccc" << endl;
+        cout << "ccccccccccccccccccccccccccccccccc" << endl;
+        cout << "ccccccccccccccccccccccccccccccccc" << endl;
+        cout << "ccccccccccccccccccccccccccccccccc" << endl;
+        cout << "ccccccccccccccccccccccccccccccccc" << endl;
         this->is_leaf = false;
         int temp_board[6][6][6];
         vector<Movement> legal_moves = this->get_next_possible_move();
         int color;
-        if (this->hands % 2 == 0)
+        cout << this->hands << endl;
+        if (this->hands % 2 == 0) {
+            cout << "aaaaaaaaaaaaaaaaaaaaaaaaaaaa" << endl;
+            cout << "aaaaaaaaaaaaaaaaaaaaaaaaaaaa" << endl;
+            cout << "aaaaaaaaaaaaaaaaaaaaaaaaaaaa" << endl;
+            cout << "aaaaaaaaaaaaaaaaaaaaaaaaaaaa" << endl;
+            cout << "aaaaaaaaaaaaaaaaaaaaaaaaaaaa" << endl;
+            cout << "aaaaaaaaaaaaaaaaaaaaaaaaaaaa" << endl;
             color = 1;
-        else
+        } else {
+            cout << "bbbbbbbbbbbbbbbbbbbbbbbbbbb" << endl;
+            cout << "bbbbbbbbbbbbbbbbbbbbbbbbbbb" << endl;
+            cout << "bbbbbbbbbbbbbbbbbbbbbbbbbbb" << endl;
+            cout << "bbbbbbbbbbbbbbbbbbbbbbbbbbb" << endl;
+            cout << "bbbbbbbbbbbbbbbbbbbbbbbbbbb" << endl;
+            cout << "bbbbbbbbbbbbbbbbbbbbbbbbbbb" << endl;
             color = 2;
-        for (auto &legal_move : legal_moves) {
+        }
+
+        vector<int> dominant_move_indices;
+        vector<int> not_dominant_move_indices;
+        shared_ptr<Node> parent_shared_ptr;
+        // Check if parent is root
+        bool parent_node_is_root = false;
+        if (!this->is_root) {
+            parent_shared_ptr = parent.lock();
+            parent_node_is_root = parent_shared_ptr->is_root;
+        }
+
+        cout << "ggggggggggggggggggggg" << endl;
+        cout << "ggggggggggggggggggggg" << endl;
+        cout << "ggggggggggggggggggggg" << endl;
+        cout << "ggggggggggggggggggggg" << endl;
+        cout << "ggggggggggggggggggggg" << endl;
+
+        for (int legal_move_idx = 0; legal_move_idx < legal_moves.size(); legal_move_idx++) {
+            Movement legal_move = legal_moves[legal_move_idx];
             for (int i = 0; i < 6; i++) {
                 for (int j = 0; j < 6; j++) {
                     for (int k = 0; k < 6; k++) {
@@ -295,12 +373,106 @@ public:
             vector<Movement> movements;
             movements.clear();
             movements.push_back(temp_move);
+            cout << endl << endl;
+            cout << "qqqqqqqqqqqqqqqq" << endl;
+            cout << "qqqqqqqqqqqqqqqq" << endl;
+            cout << "qqqqqqqqqqqqqqqq" << endl;
+            cout << "qqqqqqqqqqqqqqqq" << endl;
+            cout << "qqqqqqqqqqqqqqqq" << endl;
             Properties new_properties = get_state_properties_b(temp_board, this->my_properties, movements);
+            ///////////////////////////////////////////////////////
+            // DOMINANT PRUNING
+            ///////////////////////////////////////////////////////
+            // If use dominant pruning, check children's properties.
+            // If child move lead to a dominant strategy (We use "GETTING A NEW LINE")
+            // Thus, the move that can get a new line we call it "dominant", and its parent move we call it "dominated".
+            // Rules:
+            //     From non-root node to find move:
+            //         If a move is "dominant":
+            //                             1. Prune its parent move
+            //                             2. Check if the parent move origin node has no child because of your pruning,
+            //                                If it is, make that node's is_terminated to be TRUE.
+            //     From root node to find move:
+            //         1. Expand all children and start to check it.
+            //         2. If there are ANY "dominant" moves,
+            //                     prune all "non-dominant" moves (including regular and dominated moves),
+            //                     (Actually, A move will be only dominant or regular here;
+            //            else (there are only regular moves) (You cannot know if your move is dominated unless you know the next layer),
+            //                     do nothing
+            //      If we need to prune the move from root node, we don't directly prune it,
+            //                     we set the node which is produced from root node and the move to be NEGATIVE INFINITE.
+            //                     Thus, that node will not be visited anymore.
+            // P.S. A move pruned means its following node is pruned.
+
+            if (dominant_pruning) {
+                // Check if it is a dominant move or a regular move.
+                bool is_dominant = false;
+                if ((color == BLACK_PLAYER_COLOR && (new_properties.black_lines - my_properties.black_lines > 0))
+                    || (color = WHITE_PLAYER_COLOR && (new_properties.white_lines - my_properties.white_lines > 0))) {
+                    is_dominant = true;
+                }
+                //
+                if (is_dominant) {
+                    if (!is_root) { // Non-root node
+                        if (parent_node_is_root) {
+                            this->is_pruned = true;
+                        } else { // Not affect first layer
+                            // Check if parent will have no children after this child being pruned
+                            if (parent_shared_ptr->children.size() == 1) {
+                                // If so, make parent node be terminated
+                                parent_shared_ptr->is_terminated = true;
+                            }
+                            // Remove this child from parent
+                            int idx = 0;
+                            for (; idx < parent_shared_ptr->children.size(); idx++) { // Find where this child is
+                                if (parent_shared_ptr->children[idx]->move.x == this->move.x &&
+                                    parent_shared_ptr->children[idx]->move.y == this->move.y &&
+                                    parent_shared_ptr->children[idx]->move.l == this->move.l) {
+                                    // Find it!
+                                    break;
+                                }
+                            }
+                            parent_shared_ptr->children.erase(parent_shared_ptr->children.begin() + idx);
+                        }
+                        return EXPAND_PRUNE_PARENT;
+                    } else { // Root node
+                        dominant_move_indices.emplace_back(legal_move_idx);
+                    }
+                } else {
+                    if (is_root) {
+                        not_dominant_move_indices.emplace_back(legal_move_idx);
+                    }
+                }
+            }
             temp_board[temp_move.l][temp_move.x][temp_move.y] = color;
             shared_ptr<Node> new_child = make_shared<Node>(temp_board, this->hands + 1, temp_move, new_properties);
             this->children.push_back(new_child);
             new_child->parent = shared_from_this();
         }
+
+        if (this->is_root && dominant_pruning && (!dominant_move_indices.empty())) {
+            // Prune all non-dominant
+            for (int idx: not_dominant_move_indices) {
+                this->children[idx]->is_pruned = true;
+            }
+            return EXPAND_NOT_PRUNE_PARENT;
+        }
+
+        if (dominant_pruning && parent_node_is_root) {
+            // Check if parent has no child after being pruned
+            bool has_child = false;
+            for (auto &child: parent_shared_ptr->children) {
+                if (!child->is_pruned) {
+                    has_child = true;
+                    break;
+                }
+            }
+            if (!has_child) {
+                return EXPAND_ROOT_HAS_NO_CHILD_AFTER_PRUNED;
+            }
+        }
+
+        return EXPAND_NOT_PRUNE_PARENT;
     }
 
     int playout(bool use_block_moves) {
@@ -335,6 +507,12 @@ public:
             }
             movements.push_back(temp_move);
         }
+        cout << "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz" << endl;
+        cout << "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz" << endl;
+        cout << "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz" << endl;
+        cout << "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz" << endl;
+        cout << "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz" << endl;
+        cout << "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz" << endl;
         Properties end_properties = get_state_properties_b(board, my_properties, movements);
         if (hands % 2 == 0) {
             if (end_properties.black_points > end_properties.white_points)
@@ -530,7 +708,20 @@ public:
         vector<Movement> movements;
         movements.clear();
         movements.push_back(next_move);
+
+//        cout << "MMMMMMMMMMMMMMM ";
+//        this->my_properties.print_properties();
+//        movements[0].print_movement();
+        cout << "xxxxxxxxxxxxxxx" << endl;
+        cout << "xxxxxxxxxxxxxxx" << endl;
+        cout << "xxxxxxxxxxxxxxx" << endl;
+        cout << "xxxxxxxxxxxxxxx" << endl;
+        cout << "xxxxxxxxxxxxxxx" << endl;
         Properties new_properties = get_state_properties_b(temp_board, this->my_properties, movements);
+//        cout << "^^^^^^^^^^^^^^" << endl;
+//        new_properties.print_properties();
+//        cout << "^^^^^^^^^^^^^^" << endl;
+//        cout << endl;
         temp_board[next_move.l][next_move.x][next_move.y] = color;
         shared_ptr<Node> ret = make_shared<Node>(temp_board, this->hands + 1, next_move, new_properties);
         return ret;
@@ -651,7 +842,10 @@ public:
     }
 
 
-    Movement run(bool playout_use_block_move, bool reward_add_score_diff, bool first_hand_center) {
+    Movement run(bool playout_use_block_move,
+                 bool reward_add_score_diff,
+                 bool first_hand_center,
+                 bool dominate_pruning) {
 
         // If it is first hand (black)
         if (first_hand_center && root->hands == 0) {
@@ -670,12 +864,41 @@ public:
 
         // clock_t start = clock();
         auto start = Time::now();
+        bool root_has_no_child_since_all_are_pruned = false;
         while (true) {
-            //            cout << 1 << endl;
+            /////////////////////////////////////////////////////
+            // SELECT
+            /////////////////////////////////////////////////////
             shared_ptr<Node> temp_node = this->root->select();
-            //            cout << 2 << endl;
-            temp_node->expand();
-            //            cout << 3 << endl;
+            // Check if selected node is terminated (e.g. hands == 64 or other factors)
+            if (temp_node->hands >= 64) { // Number of hands reaches limit.
+                temp_node->is_terminated = true;
+            }
+            /////////////////////////////////////////////////////
+            // EXPAND
+            /////////////////////////////////////////////////////
+            if (!temp_node->is_terminated) {
+                cout << "oooooooooooooooooo" << endl;
+                cout << "oooooooooooooooooo" << endl;
+                cout << "oooooooooooooooooo" << endl;
+                cout << "oooooooooooooooooo" << endl;
+                int expand_rt = temp_node->expand(dominate_pruning);
+                // expand_rt==EXPAND_NOT_PRUNE_PARENT is ok
+                if (expand_rt == EXPAND_PRUNE_PARENT) {
+                    continue; // Drop this simulation
+                } else if (expand_rt == EXPAND_ROOT_HAS_NO_CHILD_AFTER_PRUNED) {
+                    root_has_no_child_since_all_are_pruned = true;
+                    break;
+                }
+            }
+            ///////////////////////////////////////////////////
+            // EVALUATE
+            ///////////////////////////////////////////////////
+            cout << "pppppppppppppppppppppppp" << endl;
+            cout << "pppppppppppppppppppppppp" << endl;
+            cout << "pppppppppppppppppppppppp" << endl;
+            cout << "pppppppppppppppppppppppp" << endl;
+            cout << "pppppppppppppppppppppppp" << endl;
             int reward = temp_node->playout(playout_use_block_move);
             // Add score_diff
             if (reward_add_score_diff && !temp_node->is_root) {
@@ -693,6 +916,9 @@ public:
                     perror("MCTS run reward_add_score_diff get weak_ptr .lock() failed.");
                 }
             }
+            ///////////////////////////////////////////////////
+            // BACKUP
+            ///////////////////////////////////////////////////
             //            cout << 4 << endl;
             temp_node->backup(reward, true);
             this->cur_simulation_cnt++;
@@ -703,6 +929,23 @@ public:
             if (this->cur_simulation_cnt >= this->max_simulation_cnt)
                 break;
         }
+
+        if (this->print_simulation_cnt) {
+            cout << "Simulation cnt: " << this->cur_simulation_cnt << endl;
+        }
+
+        /////////////////////////////////////////////////
+        // PICK A MOVE
+        /////////////////////////////////////////////////
+
+        // Root no child. We random pick a child.
+        if (root_has_no_child_since_all_are_pruned) {
+            auto moves = this->root->get_next_possible_move();
+            int rand_num = rand() % moves.size();
+            return moves[rand_num];
+        }
+
+        //
         double winning_rate = NEG_INFINITE;
         Movement ret;
         for (const auto &temp_node : this->root->children) {
@@ -716,9 +959,6 @@ public:
                 ret = temp_node->move;
                 //cout << temp_node->move.l << " " << temp_node->move.x << " " << temp_node->move.y << endl;
             }
-        }
-        if (this->print_simulation_cnt) {
-            cout << "Simulation cnt: " << this->cur_simulation_cnt << endl;
         }
         return ret;
     }
@@ -760,7 +1000,7 @@ public:
         for (int i = 0; i < step; i++) {
             MCTS mcts(cur_node, max_simulation_cnt, max_simulation_time, true);
             cout << i + 1 << " " << flush;
-            Movement move = mcts.run(false, true, true);
+            Movement move = mcts.run(false, true, true, false);
             shared_ptr<Node> new_node = cur_node->get_node_after_playing(move);
             cur_node = new_node;
         }
@@ -844,6 +1084,7 @@ int main() {
     string fight_record_dir = "fight_dir";
     int max_simulation_cnt = 999999;
     int max_simulation_time = 20;
+    bool plot_state_instantly = false;
     shared_ptr<Node> cur_node = MCTS::get_init_node();
     for (int i = 0; i < 64; i += 2) {
         cout << "================ i = " << i << " =================" << endl;
@@ -853,7 +1094,7 @@ int main() {
 
         // Black's turn
         MCTS mcts_black(cur_node, max_simulation_cnt, max_simulation_time, true);
-        move = mcts_black.run(false, false, true);
+        move = mcts_black.run(false, false, true, false);
         cur_node = cur_node->get_node_after_playing(move);
         cur_node->my_properties.print_properties();
 
@@ -861,8 +1102,9 @@ int main() {
         cur_node->output_board_string_for_plot_state();
         cur_node->my_properties.output_properties();
         output_path = fight_record_dir + "/hands_" + to_string(i + 1) + "_blackDone.png";
-        system(string("python3 plot_state_and_output.py board_content_for_plotting.txt " + output_path +
-                      " output_properties_for_plotting.txt").c_str());
+        if (plot_state_instantly)
+            system(string("python3 plot_state_and_output.py board_content_for_plotting.txt " + output_path +
+                          " output_properties_for_plotting.txt").c_str());
         ///////////////////////////////
         // Plot 2d plane
         ///////////////////////////////
@@ -875,7 +1117,7 @@ int main() {
 
         // White's turn
         MCTS mcts_white(cur_node, max_simulation_cnt, max_simulation_time, true);
-        move = mcts_white.run(false, false, true);
+        move = mcts_white.run(false, false, true, true);
         cur_node = cur_node->get_node_after_playing(move);
         cur_node->my_properties.print_properties();
 
@@ -885,8 +1127,9 @@ int main() {
         cur_node->output_board_string_for_plot_state();
         cur_node->my_properties.output_properties();
         output_path = fight_record_dir + "/hands_" + to_string(i + 2) + "_whiteDone.png";
-        system(string("python3 plot_state_and_output.py board_content_for_plotting.txt " + output_path +
-                      " output_properties_for_plotting.txt").c_str());
+        if (plot_state_instantly)
+            system(string("python3 plot_state_and_output.py board_content_for_plotting.txt " + output_path +
+                          " output_properties_for_plotting.txt").c_str());
         ///////////////////////////////
         // Plot 2d plane
         ///////////////////////////////

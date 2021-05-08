@@ -431,6 +431,13 @@ public:
                 }
             }
         }
+        if(ret.size()>24){
+            cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" <<endl;
+            cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" <<endl;
+            cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" <<endl;
+            cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" <<endl;
+            cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" <<endl;
+        }
         return ret;
     }
 
@@ -688,7 +695,7 @@ public:
             if (this->cur_simulation_cnt >= this->max_simulation_cnt)
                 break;
         }
-        double winning_rate = 0;
+        double winning_rate = NEG_INFINITE;
         Movement ret;
         for (const auto &temp_node : this->root->children) {
             if (temp_node->visiting_count == 0)
@@ -697,6 +704,7 @@ public:
             double value_mean = (double) temp_node->value_sum / (double) temp_node->visiting_count;
             //cout << temp_winning_rate << endl;
             if (value_mean > winning_rate) {
+                cout << "&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&"<<endl;
                 winning_rate = value_mean;
                 ret = temp_node->move;
                 //cout << temp_node->move.l << " " << temp_node->move.x << " " << temp_node->move.y << endl;
@@ -831,6 +839,7 @@ int main() {
     int max_simulation_time = 3;
     shared_ptr<Node> cur_node = MCTS::get_init_node();
     for (int i = 0; i < 64; i += 2) {
+        cout << "================ i = " << i << " =================" << endl;
         Movement move;
         string output_path;
         Properties prop;
@@ -838,6 +847,8 @@ int main() {
         // Black's turn
         MCTS mcts_black(cur_node, max_simulation_cnt, max_simulation_time, true);
         move = mcts_black.run(false, true, true);
+        cur_node = cur_node->get_node_after_playing(move);
+        cur_node->my_properties.print_properties();
 
         //
         cur_node->output_board_string_for_plot_state();
@@ -851,7 +862,8 @@ int main() {
         print_vector_2d_plane(mcts_black.first_layer_value_sum_distribution("valueSum"));
         print_vector_2d_plane(mcts_black.first_layer_visit_cnt_distribution("visitCnt"));
         print_vector_2d_plane(mcts_black.first_layer_value_mean_distribution("valueMean"));
-//        cout << "Get move: [" <<
+        cout << "Get move: ";
+        move.print_movement();
 
 
         // White's turn
@@ -874,6 +886,9 @@ int main() {
         print_vector_2d_plane(mcts_white.first_layer_value_sum_distribution("valueSum"));
         print_vector_2d_plane(mcts_white.first_layer_visit_cnt_distribution("visitCnt"));
         print_vector_2d_plane(mcts_white.first_layer_value_mean_distribution("valueMean"));
+        cout << "Get move: ";
+        move.print_movement();
+
 
         cout << endl;
 

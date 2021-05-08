@@ -5,14 +5,24 @@
 #include<ctime>
 #include <chrono>
 #include <cstdlib>
-#include <unistd.h> // Comment when on Windows
+// #include <unistd.h> // Comment when on Windows
 #include <fstream>
 #include <memory>
 #include <array>
+#include <algorithm>
+#include <iomanip>
+
+#define  NEG_INFINITE -9999999
 
 typedef std::chrono::high_resolution_clock Time;
 typedef std::chrono::duration<double> sec;
 using namespace std;
+
+//////////////////////////////////////
+class Movement;
+
+bool operator==(const Movement &m1, const Movement &m2);
+//////////////////////////////////////
 
 double ucb(int child_visiting_count,
            int winning_count,
@@ -32,13 +42,14 @@ double ucb(int child_visiting_count,
 template<typename T>
 void print_vector_2d_plane(vector<vector<T>> plane) {
     cout << endl;
-    for (const auto& line: plane) {
+    for (const auto &line: plane) {
         for (const auto item: line) {
-            cout << item << " ";
+            cout << setw(14) << item;
         }
         cout << endl;
     }
 }
+
 
 class Movement {
 public:
@@ -59,7 +70,16 @@ public:
     void print_movement() const {
         cout << "[" << l << ", " << x << ", " << y << "]" << endl;
     }
+
+    friend bool operator==(const Movement &m1, const Movement &m2);
 };
+
+
+bool operator==(const Movement &m1, const Movement &m2) {
+    // TODO: get_all_possible_move function seems to give no player color information. It gives zero always?
+    // To prevent some unexpected color occurring, we only check l, i, j
+    if (m1.l == m2.l && m1.x == m2.x && m1.y == m2.y) { return true; } else { return false; }
+}
 
 
 class Properties {
@@ -79,6 +99,19 @@ public:
         this->white_points = white_points;
         this->black_lines = black_lines;
         this->white_lines = white_lines;
+    }
+
+    void print_properties() const {
+        cout << "Bp: " << black_points << ", Wp: " << white_points << ", Bl: " << black_lines << ", Wl: " << white_lines
+             << endl;
+    }
+
+    void output_properties() {
+        ofstream ofs("output_properties_for_plotting.txt", fstream::trunc);
+        ofs << "BlackPoints: " << black_points << ", WhitePoints: " << white_points << ", BlackLines: " << black_lines
+            << ", WhiteLines: " << white_lines;
+        ofs.close();
+        cout << "Output properties string to \"output_properties_for_plotting.txt\" done!";
     }
 };
 
@@ -123,6 +156,7 @@ Properties get_state_properties_b(int start_state[6][6][6],
     temp_properties.black_lines = start_state_properties.black_lines;
     temp_properties.white_lines = start_state_properties.white_lines;
 
+
     for (auto &movement : movements) {
         int l = movement.l;
         int i = movement.x;
@@ -130,7 +164,7 @@ Properties get_state_properties_b(int start_state[6][6][6],
         int c = movement.color;
         for (auto &dir : dirs) {
             int cnt = 1;
-            for (int mul = 1; mul < 3; mul++) {
+            for (int mul = 1; mul <= 3; mul++) {
                 unique_ptr<int[]> temp_coordinate(new int[3]);
                 temp_coordinate[0] = l + dir[0] * mul;
                 temp_coordinate[1] = i + dir[1] * mul;
@@ -141,7 +175,7 @@ Properties get_state_properties_b(int start_state[6][6][6],
                     break;
                 cnt += 1;
             }
-            for (int mul = 1; mul < 3; mul++) {
+            for (int mul = 1; mul <= 3; mul++) {
                 unique_ptr<int[]> temp_coordinate(new int[3]);
                 temp_coordinate[0] = l + dir[0] * -mul;
                 temp_coordinate[1] = i + dir[1] * -mul;
@@ -152,6 +186,7 @@ Properties get_state_properties_b(int start_state[6][6][6],
                     break;
                 cnt += 1;
             }
+            //cout << cnt << endl;
             while (cnt >= 4) {
                 if (c == 1) {
                     temp_properties.black_lines += 1;
@@ -213,16 +248,25 @@ public:
             if (cur->is_leaf)
                 return cur;
             else {
-                double p = -1;
-                shared_ptr<Node> next_node = cur;
-                for (int i = 0; i < cur->children.size(); i++) {
+                // double cur_max_ucb_result = -1;
+                double cur_max_ucb_result = NEG_INFINITE;
+                vector<double> ucb_results;
+                for (unsigned int i = 0; i < cur->children.size(); i++) {
                     shared_ptr<Node> temp_node = cur->children[i];
-                    double temp_p = ucb(temp_node->visiting_count, temp_node->value_sum, cur->visiting_count);
-                    if (temp_p > p) {
-                        p = temp_p;
-                        next_node = temp_node;
+                    double ucb_result = ucb(temp_node->visiting_count, temp_node->value_sum, cur->visiting_count);
+                    ucb_results.emplace_back(ucb_result);
+                    if (ucb_result > cur_max_ucb_result) {
+                        cur_max_ucb_result = ucb_result;
                     }
                 }
+                vector<unsigned int> max_value_idx;
+                for (unsigned int i = 0; i < cur->children.size(); i++) {
+                    if (ucb_results[i] == cur_max_ucb_result) {
+                        max_value_idx.emplace_back(i);
+                    }
+                }
+                int random_number = rand() % max_value_idx.size();
+                shared_ptr<Node> next_node = cur->children[max_value_idx[random_number]];
                 cur = next_node;
             }
         }
@@ -259,7 +303,7 @@ public:
         }
     }
 
-    int playout() {
+    int playout(bool use_block_moves) {
         int temp_board[6][6][6];
         for (int i = 0; i < 6; i++) {
             for (int j = 0; j < 6; j++) {
@@ -271,9 +315,17 @@ public:
         vector<Movement> movements;
         movements.clear();
         for (int i = hands; i < 64; i++) {
-            vector<Movement> legal_moves = this->get_next_possible_move();
-            int random_number = rand() % legal_moves.size();
-            Movement temp_move = legal_moves[random_number];
+            vector<Movement> considered_moves;
+            // Use block move to filter moves we consider
+            // The block_moves function will return all legal moves if find no block moves
+            if (use_block_moves) {
+                considered_moves = gen_block_move();
+            } else {
+                considered_moves = this->get_next_possible_move();
+            }
+            // TODO: Check and modify and let block move gotten are all legal moves.
+            int random_number = rand() % considered_moves.size();
+            Movement temp_move = considered_moves[random_number];
             if (i % 2 == 0) {
                 temp_move.color = 1;
                 temp_board[temp_move.l][temp_move.x][temp_move.y] = 1;
@@ -284,7 +336,6 @@ public:
             movements.push_back(temp_move);
         }
         Properties end_properties = get_state_properties_b(board, my_properties, movements);
-
         if (hands % 2 == 0) {
             if (end_properties.black_points > end_properties.white_points)
                 return 1;
@@ -298,15 +349,55 @@ public:
         }
     }
 
-    void backup(int reward) {
+    void backup(int reward, bool use_reverse_for_opponent) {
         shared_ptr<Node> cur = shared_from_this();
         bool flag = true;
-        if (reward == 1) {
+        if (!use_reverse_for_opponent) {
+            if (reward == 1) {
+                while (true) {
+                    if (flag) {
+                        cur->value_sum += reward;
+                        flag = false;
+                    } else {
+                        flag = true;
+                    }
+                    cur->visiting_count++;
+                    if (cur->is_root)
+                        break;
+                    // Weak ptr
+                    if (auto p = cur->parent.lock()) {
+                        cur = p;
+                    } else {
+                        perror("Backup function cur->parent.lock() No.1 failed.");
+                    }
+                }
+            } else {
+                while (true) {
+                    if (flag)
+                        flag = false;
+                    else {
+                        cur->value_sum += 1;
+                        flag = true;
+
+                    }
+                    cur->visiting_count += 1;
+                    if (cur->is_root)
+                        break;
+                    // Weak ptr
+                    if (auto p = cur->parent.lock()) {
+                        cur = p;
+                    } else {
+                        perror("Backup function cur->parent.lock() No.2 failed.");
+                    }
+                }
+            }
+        } else {
             while (true) {
                 if (flag) {
                     cur->value_sum += reward;
                     flag = false;
                 } else {
+                    cur->value_sum -= reward;
                     flag = true;
                 }
                 cur->visiting_count++;
@@ -316,29 +407,12 @@ public:
                 if (auto p = cur->parent.lock()) {
                     cur = p;
                 } else {
-                    perror("Backup function cur->parent.lock() No.1 failed.");
+                    perror("Backup function cur->parent.lock() No.3 failed.");
                 }
             }
-        } else {
-            while (true) {
-                if (flag)
-                    flag = false;
-                else {
-                    cur->value_sum += 1;
-                    flag = true;
 
-                }
-                cur->visiting_count += 1;
-                if (cur->is_root)
-                    break;
-                // Weak ptr
-                if (auto p = cur->parent.lock()) {
-                    cur = p;
-                } else {
-                    perror("Backup function cur->parent.lock() No.2 failed.");
-                }
-            }
         }
+
     }
 
     vector<Movement> get_next_possible_move() {
@@ -431,6 +505,19 @@ public:
         Properties new_properties = get_state_properties_b(temp_board, this->my_properties, movements);
         temp_board[next_move.l][next_move.x][next_move.y] = color;
         shared_ptr<Node> ret = make_shared<Node>(temp_board, this->hands + 1, next_move, new_properties);
+
+        int board[6][6][6]{};
+        int hands;
+        Movement move;
+        int visiting_count;
+        int value_sum;
+        bool is_leaf;
+        bool is_root;
+        vector<shared_ptr<Node>> children;
+        Properties my_properties;
+        weak_ptr<Node> parent;
+
+
         return ret;
     }
 
@@ -466,7 +553,7 @@ public:
 class MCTS {
 
 private:
-    vector<vector<float>> first_layer_stat(int mode, const string& output_filename_suffix) {
+    vector<vector<float>> first_layer_stat(int mode, const string &output_filename_suffix) {
         // If output_filename_suffix == empty string means:
         //     "not to output to file"
         // Mode
@@ -500,11 +587,11 @@ private:
             plane[child->move.x][child->move.y] = value;
         }
         // Output file
-        if (!output_filename_suffix.empty()){
+        if (!output_filename_suffix.empty()) {
             ofstream ofs("first_layer_stat_" + output_filename_suffix + ".txt", fstream::trunc);
             ofs << mode_name;
-            for (const auto& line: plane){
-                for(auto item: line){
+            for (const auto &line: plane) {
+                for (auto item: line) {
                     ofs << " " << item;
                 }
             }
@@ -529,7 +616,34 @@ public:
         this->print_simulation_cnt = print_simulation_cnt;
     }
 
-    Movement run() {
+    static Movement get_rand_first_hand_center_move(bool random) {
+        if (random) {
+            int rand_num = rand() % 4;
+            switch (rand_num) {
+                case 0:
+                    return {0, 2, 2, 1};
+                case 1:
+                    return {0, 2, 3, 1};
+                case 2:
+                    return {0, 3, 2, 1};
+                case 3:
+                    return {0, 3, 3, 1};
+                default: // If error we direct
+                    break;
+            }
+        }
+        return {0, 2, 2, 1}; // Since the board is reflexive and mirror, we may have no need to random
+    }
+
+
+    Movement run(bool playout_use_block_move, bool reward_add_score_diff, bool first_hand_center) {
+
+        // If it is first hand (black)
+        if (first_hand_center && root->hands == 0) {
+            return get_rand_first_hand_center_move(false);
+        }
+
+
         this->cur_simulation_cnt = 0;
         this->root->is_root = true;
 
@@ -542,16 +656,31 @@ public:
         // clock_t start = clock();
         auto start = Time::now();
         while (true) {
-            //cout << 1 << endl;
+            //            cout << 1 << endl;
             shared_ptr<Node> temp_node = this->root->select();
-            //cout << 2 << endl;
+            //            cout << 2 << endl;
             temp_node->expand();
-            //cout << 3 << endl;
-            int reward = temp_node->playout();
-            //cout << 4 << endl;
-            temp_node->backup(reward);
+            //            cout << 3 << endl;
+            int reward = temp_node->playout(playout_use_block_move);
+            // Add score_diff
+            if (reward_add_score_diff && !temp_node->is_root) {
+                if (auto ptr = temp_node->parent.lock()) {
+                    Properties parent_pro = ptr->my_properties;
+                    if (temp_node->hands % 2 ==
+                        0) { // Black // TODO: Here seems to be wrong. "hands" cannot be used in MCTS
+                        reward += (temp_node->my_properties.black_points - parent_pro.black_points) -
+                                  (temp_node->my_properties.white_points - parent_pro.white_points);
+                    } else { // White
+                        reward += (temp_node->my_properties.white_points - parent_pro.white_points) -
+                                  (temp_node->my_properties.black_points - parent_pro.black_points);
+                    }
+                } else {
+                    perror("MCTS run reward_add_score_diff get weak_ptr .lock() failed.");
+                }
+            }
+            //            cout << 4 << endl;
+            temp_node->backup(reward, true);
             this->cur_simulation_cnt++;
-            // clock_t end = clock();
             auto end = Time::now();
             sec duration = Time::now() - start;
             if (duration.count() >= (double) (this->max_time_sec))
@@ -565,10 +694,10 @@ public:
             if (temp_node->visiting_count == 0)
                 continue;
             //cout << temp_node->value_sum << " " << temp_node->visiting_count << endl;
-            double temp_winning_rate = (double) temp_node->value_sum / (double) temp_node->visiting_count;
+            double value_mean = (double) temp_node->value_sum / (double) temp_node->visiting_count;
             //cout << temp_winning_rate << endl;
-            if (temp_winning_rate > winning_rate) {
-                winning_rate = temp_winning_rate;
+            if (value_mean > winning_rate) {
+                winning_rate = value_mean;
                 ret = temp_node->move;
                 //cout << temp_node->move.l << " " << temp_node->move.x << " " << temp_node->move.y << endl;
             }
@@ -616,7 +745,7 @@ public:
         for (int i = 0; i < step; i++) {
             MCTS mcts(cur_node, max_simulation_cnt, max_simulation_time, true);
             cout << i + 1 << " " << flush;
-            Movement move = mcts.run();
+            Movement move = mcts.run(false, true, true);
             shared_ptr<Node> new_node = cur_node->get_node_after_playing(move);
             cur_node = new_node;
         }
@@ -629,18 +758,18 @@ public:
     }
 
 
-    vector<vector<float>> first_layer_visit_cnt_distribution(const string& output_filename_suffix) {
+    vector<vector<float>> first_layer_visit_cnt_distribution(const string &output_filename_suffix) {
         // Output filename == empty string means "not to output to file"
-        return first_layer_stat(1,  output_filename_suffix);
+        return first_layer_stat(1, output_filename_suffix);
     }
 
-    vector<vector<float>> first_layer_value_sum_distribution(const string& output_filename_suffix) {
+    vector<vector<float>> first_layer_value_sum_distribution(const string &output_filename_suffix) {
         // Output filename == empty string means "not to output to file"
 
-        return first_layer_stat(2,  output_filename_suffix);
+        return first_layer_stat(2, output_filename_suffix);
     }
 
-    vector<vector<float>> first_layer_value_mean_distribution(const string& output_filename_suffix) {
+    vector<vector<float>> first_layer_value_mean_distribution(const string &output_filename_suffix) {
         // Output filename == empty string means "not to output to file"
         return first_layer_stat(3, output_filename_suffix);
     }
@@ -651,47 +780,131 @@ int main() {
     // Init random
     srand(time(nullptr));
 
-    // shared_ptr<Node> cur_node = MCTS::get_init_node();
-    shared_ptr<Node> cur_node = MCTS::get_random_board_node(40, 5000, 99);
-
-    auto movements = cur_node->gen_block_move();
-    MCTS mcts(cur_node, 5000, 999, true);
-    Movement move = mcts.run();
-
-    print_vector_2d_plane(mcts.first_layer_value_sum_distribution("valueSum"));
-    print_vector_2d_plane(mcts.first_layer_visit_cnt_distribution("visitCnt"));
-    print_vector_2d_plane(mcts.first_layer_value_mean_distribution("valueMean"));
-
-    //
-    vector<Movement> v = cur_node->gen_block_move();
-    for (auto &a_move: v) {
-        cout << a_move.l << ", " << a_move.x << ", " << a_move.y << endl;
-    }
-    cout << "Total: " << v.size() << " moves." << endl;
-
-
-
-    cur_node->output_board_string_for_plot_state();
-    system("python3 plot_state.py board_content_for_plotting.txt");
-
-
-
-
-//    for (auto item : movements) {
-//        item.print_movement();
+//    shared_ptr<Node> node = MCTS::get_init_node();
+//    vector<Movement> moves;
+//    node = node->get_node_after_playing(Movement(0, 2, 1, 2)
+//    );
+//    node = node->get_node_after_playing(Movement(1, 1, 1, 1)
+//    );
+//    node = node->get_node_after_playing(Movement(1, 2, 1, 2)
+//    );
+//    node = node->get_node_after_playing(Movement(2, 1, 1, 1)
+//    );
+//    node = node->get_node_after_playing(Movement(2, 2, 1, 2)
+//    );
+//    node = node->get_node_after_playing(Movement(3, 1, 1, 1)
+//    );
+//    node = node->get_node_after_playing(Movement(3, 2, 1, 2)
+//    );
+//    node = node->get_node_after_playing(Movement(4, 1, 1, 1)
+//    );
+//    node = node->get_node_after_playing(Movement(4, 2, 1, 2)
+//    );
+//    node = node->get_node_after_playing(Movement(5, 1, 1, 1)
+//    );
+//    moves.emplace_back(0, 1, 1, 1);
+//    moves.emplace_back(0, 2, 1, 2);
+//    moves.emplace_back(1, 1, 1, 1);
+//    moves.emplace_back(1, 2, 1, 2);
+//    moves.emplace_back(2, 1, 1, 1);
+//    moves.emplace_back(2, 2, 1, 2);
+//    moves.emplace_back(3, 1, 1, 1);
+//    moves.emplace_back(3, 2, 1, 2);
+//    moves.emplace_back(4, 1, 1, 1);
+//    moves.emplace_back(4, 2, 1, 2);
+//
+//    for (auto move: moves) {
+//        node = node->get_node_after_playing(move);
 //    }
+//
+//    Properties prop = get_state_properties_b(MCTS::get_init_node()->board, MCTS::get_init_node()->my_properties, moves);
+//
+//    cout << prop.black_points << " " << prop.white_points << " " << prop.black_lines << " " << prop.white_lines << endl;
+//    node->output_board_string_for_plot_state();
+//    system("python3 plot_state.py board_content_for_plotting.txt");
+//
+//    exit(1);
+
+    // Fight
+    string fight_record_dir = "fight_dir";
+    int max_simulation_cnt = 999999;
+    int max_simulation_time = 3;
+    shared_ptr<Node> cur_node = MCTS::get_init_node();
+    for (int i = 0; i < 64; i += 2) {
+        Movement move;
+        string output_path;
+        Properties prop;
+
+        // Black's turn
+        MCTS mcts_black(cur_node, max_simulation_cnt, max_simulation_time, true);
+        move = mcts_black.run(false, true, true);
+
+        //
+        cur_node->output_board_string_for_plot_state();
+        cur_node->my_properties.output_properties();
+        output_path = fight_record_dir + "/hands_" + to_string(i + 1) + "_blackDone.png";
+        system(string("python3 plot_state_and_output.py board_content_for_plotting.txt " + output_path +
+                      " output_properties_for_plotting.txt").c_str());
+        ///////////////////////////////
+        // Plot 2d plane
+        ///////////////////////////////
+        print_vector_2d_plane(mcts_black.first_layer_value_sum_distribution("valueSum"));
+        print_vector_2d_plane(mcts_black.first_layer_visit_cnt_distribution("visitCnt"));
+        print_vector_2d_plane(mcts_black.first_layer_value_mean_distribution("valueMean"));
+//        cout << "Get move: [" <<
+
+
+        // White's turn
+        MCTS mcts_white(cur_node, max_simulation_cnt, max_simulation_time, true);
+        move = mcts_white.run(false, true, true);
+        cur_node = cur_node->get_node_after_playing(move);
+        cur_node->my_properties.print_properties();
 
 
 
+        //
+        cur_node->output_board_string_for_plot_state();
+        cur_node->my_properties.output_properties();
+        output_path = fight_record_dir + "/hands_" + to_string(i + 2) + "_whiteDone.png";
+        system(string("python3 plot_state_and_output.py board_content_for_plotting.txt " + output_path +
+                      " output_properties_for_plotting.txt").c_str());
+        ///////////////////////////////
+        // Plot 2d plane
+        ///////////////////////////////
+        print_vector_2d_plane(mcts_white.first_layer_value_sum_distribution("valueSum"));
+        print_vector_2d_plane(mcts_white.first_layer_visit_cnt_distribution("visitCnt"));
+        print_vector_2d_plane(mcts_white.first_layer_value_mean_distribution("valueMean"));
 
+        cout << endl;
 
+    }
 
-//    MCTS mcts(cur_node, 9999999, 3, true);
-//    mcts.run();
-//    cout << "Done" << endl;
+    ///////////////////////////////
+    // Plot 2d plane
+    ///////////////////////////////
+    //    print_vector_2d_plane(mcts.first_layer_value_sum_distribution("valueSum"));
+    //    print_vector_2d_plane(mcts.first_layer_visit_cnt_distribution("visitCnt"));
+    //    print_vector_2d_plane(mcts.first_layer_value_mean_distribution("valueMean"));
 
+    ///////////////////////////////
+    // Test gen_block_move()
+    ///////////////////////////////
+    //    vector<Movement> v = cur_node->gen_block_move();
+    //    for (auto &a_move: v) {
+    //        cout << a_move.l << ", " << a_move.x << ", " << a_move.y << endl;
+    //    }
+    //    cout << "Total: " << v.size() << " moves." << endl;
 
-//    Movement next_move = mcts.run();
-//    cout << next_move.l << " " << next_move.x << " " << next_move.y << endl;
+    //////////////////////////
+    // Plot state
+    //////////////////////////
+    //    cur_node->output_board_string_for_plot_state();
+    //    system("python3 plot_state.py board_content_for_plotting.txt");
 
+    ////////////////////////////
+    // Print movements
+    ////////////////////////////
+    //    for (auto item : movements) {
+    //        item.print_movement();
+    //    }
 }

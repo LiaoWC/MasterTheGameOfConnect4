@@ -1,4 +1,5 @@
 vector<Movement> gen_block_move() {    
+        bool flag = true;
         vector<Movement> all_possible_moves = this->get_next_possible_move();
         int opponent_color = (this->hands % 2 == 0) ? 2 : 1;
         int self_color = (this->hands % 2 == 0) ? 1 : 2;
@@ -18,6 +19,7 @@ vector<Movement> gen_block_move() {
         }
         vector<Movement> block_moves;
         for (auto& all_possible_move : all_possible_moves) {
+            flag = true;
             for (auto& dir : dirs) {
                 unique_ptr<int[]> new_pos_a(new int[3]);
                 new_pos_a[0] = all_possible_move.l + dir[0];
@@ -37,16 +39,14 @@ vector<Movement> gen_block_move() {
                     i = new_pos_b[1];
                     j = new_pos_b[2];
                     if (boundary_test(new_pos_b) && this->board[l][i][j] == self_color) {
-                        int k = 10;
-                        while (k > 0) {
-                            Movement block_move_b;
-                            block_move_b.l = all_possible_move.l;
-                            block_move_b.x = all_possible_move.x;
-                            block_move_b.y = all_possible_move.y;
-                            block_move_b.color = self_color;
-                            block_moves.push_back(block_move_b);
-                            k--;
-                        }
+                        Movement block_move_b;
+                        block_move_b.l = all_possible_move.l;
+                        block_move_b.x = all_possible_move.x;
+                        block_move_b.y = all_possible_move.y;
+                        block_move_b.color = self_color;
+                        block_move_b.p += block_move_b.c * 2;
+                        block_moves.push_back(block_move_b);
+                        flag = false;
                     }
                 }
 
@@ -68,14 +68,19 @@ vector<Movement> gen_block_move() {
                 block_move_a.x = all_possible_move.x;
                 block_move_a.y = all_possible_move.y;
                 block_move_a.color = self_color;
+                block_move_a.p += block_move_a.c;
                 block_moves.push_back(block_move_a);
+                flag = false;
+            }
+            if (flag) {
+                Movement block_move;
+                block_move.l = all_possible_move.l;
+                block_move.x = all_possible_move.x;
+                block_move.y = all_possible_move.y;
+                block_move.color = self_color;
+                block_moves.push_back(block_move);
             }
         }
         srand(time(nullptr));
-        if (!block_moves.empty()) {
-            return block_moves;
-        }
-        else {
-            return all_possible_moves;
-        }
+        return block_moves;
     }

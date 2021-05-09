@@ -20,7 +20,7 @@
 // For expand's return value
 #define EXPAND_NOT_PRUNE_PARENT 1
 #define EXPAND_PRUNE_PARENT 2
-#define EXPAND_ROOT_HAS_NO_CHILD_AFTER_PRUNED 3
+#define EXPAND_ROOT_HAS_DOMINANT_MOVE 3
 //
 
 typedef std::chrono::high_resolution_clock Time;
@@ -62,7 +62,8 @@ double puct(int child_visiting_count,
     q = (double) winning_count / (double) child_visiting_count;
     // Exploitation
     double puct_constant = 1.414;
-    u = puct_constant * prior_value * (pow((double) parent_visit_cnt, 0.5) / (double) (1 + child_visiting_count));
+    u = puct_constant  * (pow((double) parent_visit_cnt, 0.5) / (double) (1 + child_visiting_count));
+    u += prior_value;
     // PUCT = Q(s,a) + U(s,a)
     return q + u;
 }
@@ -256,7 +257,6 @@ public:
     bool is_leaf;
     bool is_root;
     bool is_terminated; // Prevent from doing expanding
-    bool is_pruned; // Prevent from being selected
     vector<shared_ptr<Node>> children;
     Properties my_properties;
     weak_ptr<Node> parent;
@@ -281,7 +281,6 @@ public:
         this->is_leaf = true;
         this->is_root = false;
         this->is_terminated = false;
-        this->is_pruned = false;
         children.clear();
     }
 
@@ -301,20 +300,11 @@ public:
                 for (unsigned int i = 0; i < cur->children.size(); i++) {
                     shared_ptr<Node> temp_node = cur->children[i];
                     double ucb_result;
-                    if (temp_node->is_pruned) {
-                        // Note:
-                        //     ucb_result = NEG_INFINITE;
-                        //     Since we make the ucb_result to be neg infinite and still find the pruned node is selected...
-                        //     , we change it to ignore the pruned node directly
-                        //
-                        ucb_results.emplace_back(NEG_INFINITE);
-                        continue;;
+                    if (prior_value) {
+                        ucb_result = puct(temp_node->visiting_count, temp_node->value_sum, cur->visiting_count,
+                                          temp_node->move.prior);
                     } else {
-                        if (prior_value) {
-                            ucb_result = puct(temp_node->visiting_count, temp_node->value_sum, cur->visiting_count,temp_node->move.prior);
-                        } else {
-                            ucb_result = ucb(temp_node->visiting_count, temp_node->value_sum, cur->visiting_count);
-                        }
+                        ucb_result = ucb(temp_node->visiting_count, temp_node->value_sum, cur->visiting_count);
                     }
 
                     ucb_results.emplace_back(ucb_result);
@@ -351,7 +341,6 @@ public:
             legal_moves = this->get_next_possible_move();
         }
         vector<int> dominant_move_indices;
-        vector<int> not_dominant_move_indices;
         shared_ptr<Node> parent_shared_ptr;
         // Check if parent is root
         bool parent_node_is_root = false;
@@ -372,11 +361,15 @@ public:
             Movement temp_move;
             temp_move = legal_move;
             int color = this->hands % 2 == 0 ? 1 : 2;
+
             temp_move.color = color;
             vector<Movement> movements;
             movements.clear();
             movements.push_back(temp_move);
+
+
             Properties new_properties = get_state_properties_b(temp_board, this->my_properties, movements);
+            temp_board[temp_move.l][temp_move.x][temp_move.y] = color;
 
             ///////////////////////////////////////////////////////
             // DOMINANT PRUNING
@@ -387,9 +380,9 @@ public:
             // Rules:
             //     From non-root node to find move:
             //         If a move is "dominant":
-            //                             1. Prune its parent move
+            //                             1. Prune its parent move.
             //                             2. Check if the parent move origin node has no child because of your pruning,
-            //                                If it is, make that node's is_terminated to be TRUE.
+            //                                If it is, make that node's is_terminated and is_leaf to be TRUE.
             //     From root node to find move:
             //         1. Expand all children and start to check it.
             //         2. If there are ANY "dominant" moves,
@@ -397,10 +390,13 @@ public:
             //                     (Actually, A move will be only dominant or regular here;
             //            else (there are only regular moves) (You cannot know if your move is dominated unless you know the next layer),
             //                     do nothing
-            //      If we need to prune the move from root node, we don't directly prune it,
-            //                     we set the node which is produced from root node and the move to be NEGATIVE INFINITE.
-            //                     Thus, that node will not be visited anymore.
             // P.S. A move pruned means its following node is pruned.
+            //
+            // 2021/5/9 Modification:
+            //                       - Root's children will be erased from vector if pruned.
+            //                       - If root's children all are pruned, use smaller mcts to random again.
+            //                             In run(), we check if root has no children anymore. If it is,
+            //                             we use the rest of time to do a new mcts run without pruning.
 
             if (dominant_pruning) {
                 // Check if it is a dominant move or a regular move.
@@ -409,72 +405,65 @@ public:
                     || (color = WHITE_PLAYER_COLOR && (new_properties.white_lines - my_properties.white_lines > 0))) {
                     is_dominant = true;
                 }
+                if(is_root){
+                    cout << "####################################### RRRRR @@@@@@"<<endl;
+                    for(auto &child: this->children){
+                        child->move.print_movement();
+                    }
+                }
+                if (is_dominant && parent_node_is_root){
+                    cout << "Is domiantn: ";
+                    this->move.print_movement();
+                    temp_move.print_movement();
+                    my_properties.print_properties();
+                    new_properties.print_properties();
+                }
                 //
                 if (is_dominant) {
-                    if (!is_root) { // Non-root node
-                        if (parent_node_is_root) {
-                            this->is_pruned = true;
-                        } else { // Not affect first layer
-                            // Check if parent will have no children after this child being pruned
-                            if (parent_shared_ptr->children.size() == 1) {
-                                // If so, make parent node be terminated and be a leaf node
-                                parent_shared_ptr->is_terminated = true;
-                                parent_shared_ptr->is_leaf = true;
-                            }
-                            // Remove this child from parent
-                            int idx = 0;
-                            for (; idx < parent_shared_ptr->children.size(); idx++) { // Find where this child is
-                                if (parent_shared_ptr->children[idx]->move.x == this->move.x &&
-                                    parent_shared_ptr->children[idx]->move.y == this->move.y &&
-                                    parent_shared_ptr->children[idx]->move.l == this->move.l) {
-                                    // Find it!
-                                    break;
-                                }
-                            }
-                            parent_shared_ptr->children.erase(parent_shared_ptr->children.begin() + idx);
+                    if (!is_root) {
+                        // Check if parent will have no children after this child being pruned
+                        if (parent_shared_ptr->children.size() == 1) {
+                            // If so, make parent node be terminated and be a leaf node
+                            parent_shared_ptr->is_terminated = true;
+                            parent_shared_ptr->is_leaf = true;
                         }
+                        // Remove this child from parent
+                        int idx = 0;
+                        for (; idx < parent_shared_ptr->children.size(); idx++) { // Find where this child is
+                            if (parent_shared_ptr->children[idx]->move.x == this->move.x &&
+                                parent_shared_ptr->children[idx]->move.y == this->move.y &&
+                                parent_shared_ptr->children[idx]->move.l == this->move.l) {
+                                // Find it!
+                                break;
+                            }
+                        }
+                        parent_shared_ptr->children.erase(parent_shared_ptr->children.begin() + idx);
+                       if(parent_node_is_root){
+                           cout << "&&&&&&&&&&&&&&&&& prunedddd    " << endl;
+                       }
                         return EXPAND_PRUNE_PARENT;
                     } else { // Root node
                         dominant_move_indices.emplace_back(legal_move_idx);
                     }
-                } else {
-                    if (is_root) {
-                        not_dominant_move_indices.emplace_back(legal_move_idx);
-                    }
                 }
             }
-            temp_board[temp_move.l][temp_move.x][temp_move.y] = color;
             shared_ptr<Node> new_child = make_shared<Node>(temp_board, this->hands + 1, temp_move, new_properties);
             this->children.push_back(new_child);
             new_child->parent = shared_from_this();
         }
 
+        // For root node: If there are any dominant moves existing, we prune all non-dominant nodes.
         if (this->is_root && dominant_pruning && (!dominant_move_indices.empty())) {
-            // Prune all non-dominant
-            for (int idx: not_dominant_move_indices) {
-                this->children[idx]->is_pruned = true;
+            vector<shared_ptr<Node>> children_pruned;
+            // "Better performance will be reached when avoiding dynamic reallocation, so try to have the vector memory be big enough to receive all elements."
+            //  -- reference: https://stackoverflow.com/questions/32199388/what-is-better-reserve-vector-capacity-preallocate-to-size-or-push-back-in-loo
+            children_pruned.reserve(dominant_move_indices.size());
+            for (int idx: dominant_move_indices) {
+                children_pruned.emplace_back(this->children[idx]);
             }
-            return EXPAND_NOT_PRUNE_PARENT;
+            this->children = children_pruned;
+            return EXPAND_ROOT_HAS_DOMINANT_MOVE;
         }
-
-        // TODO: This section seems to have bug.
-        //       We find a case occurs:
-        //              All root children's visit cnt are all zero but here it didn't return EXPAND_ROOT_HAS_NO_CHILD_AFTER_PRUNED
-        //       To ensure
-        if (dominant_pruning && parent_node_is_root) {
-            // Check if parent has no child after being pruned
-            bool has_child = false;
-            for (auto &child: parent_shared_ptr->children) {
-                if (!child->is_pruned) {
-                    has_child = true;
-                    break;
-                }
-            }
-            if (!has_child) {
-                return EXPAND_ROOT_HAS_NO_CHILD_AFTER_PRUNED;
-            }
-        }
-
         return EXPAND_NOT_PRUNE_PARENT;
     }
 
@@ -847,6 +836,8 @@ public:
         this->cur_simulation_cnt = 0;
         this->root->is_root = true;
 
+        bool root_has_dominant_move = false;
+
         // Time example:
         // auto t0 = Time::now();
         // auto t1 = Time::now();
@@ -855,7 +846,6 @@ public:
 
         // clock_t start = clock();
         auto start = Time::now();
-        bool root_has_no_child_since_all_are_pruned = false;
         while (true) {
             auto end = Time::now();
             sec duration = Time::now() - start;
@@ -867,6 +857,10 @@ public:
             // SELECT
             /////////////////////////////////////////////////////
             shared_ptr<Node> temp_node = this->root->select(prior_value);
+            // Check if root's children are all pruned
+            if (temp_node->is_root && temp_node->is_terminated) {
+                break;
+            }
             // Check if selected node is terminated (e.g. hands == 64 or other factors)
             if (temp_node->hands >= 64) { // Number of hands reaches limit.
                 temp_node->is_terminated = true;
@@ -879,15 +873,41 @@ public:
                 // expand_rt==EXPAND_NOT_PRUNE_PARENT is ok
                 if (expand_rt == EXPAND_PRUNE_PARENT) {
                     continue; // Drop this simulation
-                } else if (expand_rt == EXPAND_ROOT_HAS_NO_CHILD_AFTER_PRUNED) {
-                    root_has_no_child_since_all_are_pruned = true;
-                    break;
+                } else if (expand_rt == EXPAND_ROOT_HAS_DOMINANT_MOVE) {
+                    root_has_dominant_move = true;
                 }
             }
             ///////////////////////////////////////////////////
             // EVALUATE
             ///////////////////////////////////////////////////
-            int reward = temp_node->playout(playout_use_block_move);
+            int reward = 0;
+            if (temp_node->is_terminated) {
+                int color = (temp_node->hands % 2 == 0) ? BLACK_PLAYER_COLOR : WHITE_PLAYER_COLOR;
+                // 1: black win; 2: white win; 0: draw
+                int black_win = 0;
+                if (temp_node->my_properties.black_points > temp_node->my_properties.white_points) {
+                    black_win = 1;
+                } else if (temp_node->my_properties.black_points < temp_node->my_properties.white_points) {
+                    black_win = 2;
+                }
+                if (black_win == 0) {
+                    reward = 0;
+                } else if (black_win == 1) {
+                    if (color == BLACK_PLAYER_COLOR) {
+                        reward = 1;
+                    } else {
+                        reward = -1;
+                    }
+                } else {
+                    if (color == BLACK_PLAYER_COLOR) {
+                        reward = -1;
+                    } else {
+                        reward = 1;
+                    }
+                }
+            } else {
+                reward = temp_node->playout(playout_use_block_move);
+            }
             // Add score_diff
             if (reward_add_score_diff && !temp_node->is_root) {
                 if (auto ptr = temp_node->parent.lock()) {
@@ -912,6 +932,30 @@ public:
             this->cur_simulation_cnt++;
         }
 
+        /////////////////////////////////////////////////////////////////////////////////////////////
+        // Re run MCTS if root's children are all pruned but not because root has any dominant moves
+        /////////////////////////////////////////////////////////////////////////////////////////////
+        if (!root_has_dominant_move && this->root->is_terminated) {
+            cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" << endl;
+            cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" << endl;
+            cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" << endl;
+            cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" << endl;
+            cout << "root children size: " << this->root->children.size() << endl;
+            shared_ptr<Node> new_root = make_shared<Node>(this->root->board, this->root->hands, this->root->move,
+                                                          this->root->my_properties);
+            auto end = Time::now();
+            sec duration = Time::now() - start;
+            cout << "Has used " << duration.count() << " sec" << endl;
+            int rest_of_time = (int) ((double) (this->max_time_sec) - duration.count());
+            int rerun_time = max(1, rest_of_time);
+            MCTS mcts(new_root, 999999, rerun_time, true);
+            cout << "Re-mcts-run with remained time: " << rerun_time << " sec." << endl;
+            // Run mcts with simple settings
+            Movement new_move = mcts.run(false, false, true, false, false);
+            this->root = new_root;
+            return new_move;
+        }
+
         if (this->print_simulation_cnt) {
             cout << "Simulation cnt: " << this->cur_simulation_cnt << endl;
         }
@@ -919,31 +963,13 @@ public:
         /////////////////////////////////////////////////
         // PICK A MOVE
         /////////////////////////////////////////////////
-
-        // Root no child. We random pick a child.
-        if (root_has_no_child_since_all_are_pruned) {
-            auto moves = this->root->get_next_possible_move();
-            int rand_num = rand() % moves.size();
-            cout << "HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHh" << endl;
-            return moves[rand_num];
-        }
-
-        //
         double winning_rate = NEG_INFINITE;
         Movement ret{-1, -1, -1, -1};
         for (const auto &temp_node : this->root->children) {
             if (temp_node->visiting_count == 0) {
-                cout << "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE" << endl;
                 continue;
             }
             // TODO: it seems there's node that ought to be pruned but still be picked up for playing next move
-            if (temp_node->is_pruned) {
-
-                cout << "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@" << endl;
-                continue;
-                // TODO: Modify codes to make DOMINATE PRUNING also really pruned root's children
-                //       It seems that I need to do this seems it can also test if it really erase vector elements.
-            }
             //cout << temp_node->value_sum << " " << temp_node->visiting_count << endl;
             double value_mean = (double) temp_node->value_sum / (double) temp_node->visiting_count;
             //cout << temp_winning_rate << endl;
@@ -953,7 +979,6 @@ public:
                 //cout << temp_node->move.l << " " << temp_node->move.x << " " << temp_node->move.y << endl;
             }
         }
-
         return ret;
     }
 
@@ -1077,7 +1102,7 @@ int main() {
     // Fight
     string fight_record_dir = "fight_dir";
     int max_simulation_cnt = 99999999;
-    int max_simulation_time = 2;
+    int max_simulation_time = 1;
     bool plot_state_instantly = true;
     shared_ptr<Node> cur_node = MCTS::get_init_node();
     for (int i = 0; i < 64; i += 2) {
@@ -1087,7 +1112,7 @@ int main() {
         Properties prop;
 
         // Black's turn
-        cout << "########### BLACK #####################" <<endl;
+        cout << "########### BLACK #####################" << endl;
         MCTS mcts_black(cur_node, max_simulation_cnt, max_simulation_time, true);
         move = mcts_black.run(false, false, true, true, false);
         cur_node = cur_node->get_node_after_playing(move);
@@ -1111,7 +1136,7 @@ int main() {
 
 
         // White's turn
-        cout << "########### WHITE #####################" <<endl;
+        cout << "########### WHITE #####################" << endl;
         MCTS mcts_white(cur_node, max_simulation_cnt, max_simulation_time, true);
         move = mcts_white.run(false, false, true, true, true);
         cur_node = cur_node->get_node_after_playing(move);

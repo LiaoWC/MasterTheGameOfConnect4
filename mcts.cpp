@@ -461,20 +461,6 @@ public:
                     || (color = WHITE_PLAYER_COLOR && (new_properties.white_lines - my_properties.white_lines > 0))) {
                     is_dominant = true;
                 }
-//                if(is_root){
-//                    cout << "####################################### RRRRR @@@@@@"<<endl;
-//                    for(auto &child: this->children){
-//                        child->move.print_movement();
-//                    }
-//                }
-//                if (is_dominant && parent_node_is_root){
-//                    cout << "Is domiantn: ";
-//                    this->move.print_movement();
-//                    temp_move.print_movement();
-//                    my_properties.print_properties();
-//                    new_properties.print_properties();
-//                }
-                //
                 if (is_dominant) {
                     if (!is_root) {
                         // Check if parent will have no children after this child being pruned
@@ -553,14 +539,6 @@ public:
             movements.push_back(temp_move);
         }
         Properties end_properties = get_state_properties_b(board, my_properties, movements);
-        if (this->is_root) {
-            cout << "Playout hands: " << this->hands << endl;
-        }
-        if (auto ppp = this->parent.lock()) {
-            if (ppp->is_root) {
-                //cout << "Playout hands: " << this->hands << endl;
-            }
-        }
         if (this->hands % 2 == 0) {
             if (end_properties.black_points > end_properties.white_points)
                 return 1;
@@ -666,93 +644,6 @@ public:
         }
         return ret;
     }
-
-//    vector<Movement> gen_block_move() {
-//        bool flag = true;
-//        vector<Movement> all_possible_moves = this->get_next_possible_move();
-//        int opponent_color = (this->hands % 2 == 0) ? 2 : 1;
-//        int self_color = (this->hands % 2 == 0) ? 1 : 2;
-//        int dirs[26][3];
-//        int cnt = 0;
-//        for (int l = -1; l <= 1; l++) {
-//            for (int i = -1; i <= 1; i++) {
-//                for (int j = -1; j <= 1; j++) {
-//                    if (l == 0 && i == 0 && j == 0)
-//                        continue;
-//                    dirs[cnt][0] = l;
-//                    dirs[cnt][1] = i;
-//                    dirs[cnt][2] = j;
-//                    cnt++;
-//                }
-//            }
-//        }
-//        vector<Movement> block_moves;
-//        for (auto &all_possible_move : all_possible_moves) {
-//            flag = true;
-//            for (auto &dir : dirs) {
-//                unique_ptr<int[]> new_pos_a(new int[3]);
-//                new_pos_a[0] = all_possible_move.l + dir[0];
-//                new_pos_a[1] = all_possible_move.x + dir[1];
-//                new_pos_a[2] = all_possible_move.y + dir[2];
-//
-//                unique_ptr<int[]> new_pos_b(new int[3]);
-//                new_pos_b[0] = all_possible_move.l + dir[0];
-//                new_pos_b[1] = all_possible_move.x + dir[1];
-//                new_pos_b[2] = all_possible_move.y + dir[2];
-//                int l = new_pos_b[0], i = new_pos_b[1], j = new_pos_b[2];
-//                if (boundary_test(new_pos_b) && this->board[l][i][j] == self_color) {
-//                    new_pos_b[0] += dir[0];
-//                    new_pos_b[1] += dir[1];
-//                    new_pos_b[2] += dir[2];
-//                    l = new_pos_b[0];
-//                    i = new_pos_b[1];
-//                    j = new_pos_b[2];
-//                    if (boundary_test(new_pos_b) && this->board[l][i][j] == self_color) {
-//                        Movement block_move_b;
-//                        block_move_b.l = all_possible_move.l;
-//                        block_move_b.x = all_possible_move.x;
-//                        block_move_b.y = all_possible_move.y;
-//                        block_move_b.color = self_color;
-//                        block_move_b.prior += block_move_b.base_c * 2;
-//                        block_moves.push_back(block_move_b);
-//                        flag = false;
-//                    }
-//                }
-//
-//                l = new_pos_a[0];
-//                i = new_pos_a[1];
-//                j = new_pos_a[2];
-//                if (!boundary_test(new_pos_a) || this->board[l][i][j] != opponent_color)
-//                    continue;
-//                new_pos_a[0] += dir[0];
-//                new_pos_a[1] += dir[1];
-//                new_pos_a[2] += dir[2];
-//                l = new_pos_a[0];
-//                i = new_pos_a[1];
-//                j = new_pos_a[2];
-//                if (!boundary_test(new_pos_a) || this->board[l][i][j] != opponent_color)
-//                    continue;
-//                Movement block_move_a;
-//                block_move_a.l = all_possible_move.l;
-//                block_move_a.x = all_possible_move.x;
-//                block_move_a.y = all_possible_move.y;
-//                block_move_a.color = self_color;
-//                block_move_a.prior += block_move_a.base_c;
-//                block_moves.push_back(block_move_a);
-//                flag = false;
-//            }
-//            if (flag) {
-//                Movement block_move;
-//                block_move.l = all_possible_move.l;
-//                block_move.x = all_possible_move.x;
-//                block_move.y = all_possible_move.y;
-//                block_move.color = self_color;
-//                block_moves.push_back(block_move);
-//            }
-//        }
-//        srand(time(nullptr));
-//        return block_moves;
-//    }
 
     vector<Movement> gen_block_move() {
         int temp_state[6][6][6];
@@ -913,7 +804,6 @@ public:
 
         Properties new_properties = get_state_properties_b(temp_board, this->my_properties, movements);
         temp_board[next_move.l][next_move.x][next_move.y] = color;
-        cout << "aaaaaaaaaaaaaa  " << this->hands << endl;
         shared_ptr<Node> ret = make_shared<Node>(temp_board, this->hands + 1, next_move, new_properties);
         return ret;
     }
@@ -1315,6 +1205,7 @@ int main() {
         int max_simulation_time = 1;
         bool plot_state_instantly = false;
         shared_ptr<Node> cur_node = MCTS::get_init_node();
+        bool debug = false;
 
 //    Movement m1(0, 2, 1, 2);
 //    Movement m11(0, 3, 1, 1);
@@ -1343,23 +1234,27 @@ int main() {
             MCTS mcts_black(cur_node, max_simulation_cnt, max_simulation_time, true);
             move = mcts_black.run(false, false, true, true, true, false);
             cur_node = cur_node->get_node_after_playing(move);
-            cur_node->my_properties.print_properties();
+            if (debug) { cur_node->my_properties.print_properties(); }
 
             //
-            cur_node->output_board_string_for_plot_state();
-            cur_node->my_properties.output_properties();
-            output_path = fight_record_dir + "/hands_" + to_string(i + 1) + "_blackDone.png";
-            if (plot_state_instantly)
-                system(string("python3 plot_state_and_output.py board_content_for_plotting.txt " + output_path +
-                              " output_properties_for_plotting.txt").c_str());
+            if (debug) {
+                cur_node->output_board_string_for_plot_state();
+                cur_node->my_properties.output_properties();
+                output_path = fight_record_dir + "/hands_" + to_string(i + 1) + "_blackDone.png";
+                if (plot_state_instantly)
+                    system(string("python3 plot_state_and_output.py board_content_for_plotting.txt " + output_path +
+                                  " output_properties_for_plotting.txt").c_str());
+            }
             ///////////////////////////////
             // Plot 2d plane
             ///////////////////////////////
-            print_vector_2d_plane(mcts_black.first_layer_value_sum_distribution("valueSum"));
-            print_vector_2d_plane(mcts_black.first_layer_visit_cnt_distribution("visitCnt"));
-            print_vector_2d_plane(mcts_black.first_layer_value_mean_distribution("valueMean"));
-            cout << "Get move: ";
-            move.print_movement();
+            if (debug) {
+                print_vector_2d_plane(mcts_black.first_layer_value_sum_distribution("valueSum"));
+                print_vector_2d_plane(mcts_black.first_layer_visit_cnt_distribution("visitCnt"));
+                print_vector_2d_plane(mcts_black.first_layer_value_mean_distribution("valueMean"));
+                cout << "Get move: ";
+                move.print_movement();
+            }
 
 
             // White's turn
@@ -1367,25 +1262,29 @@ int main() {
             MCTS mcts_white(cur_node, max_simulation_cnt, max_simulation_time, true);
             move = mcts_white.run(false, false, true, true, true, false);
             cur_node = cur_node->get_node_after_playing(move);
-            cur_node->my_properties.print_properties();
+            if (debug) { cur_node->my_properties.print_properties(); }
 
 
 
             //
-            cur_node->output_board_string_for_plot_state();
-            cur_node->my_properties.output_properties();
-            output_path = fight_record_dir + "/hands_" + to_string(i + 2) + "_whiteDone.png";
-            if (plot_state_instantly)
-                system(string("python3 plot_state_and_output.py board_content_for_plotting.txt " + output_path +
-                              " output_properties_for_plotting.txt").c_str());
+            if (debug) {
+                cur_node->output_board_string_for_plot_state();
+                cur_node->my_properties.output_properties();
+                output_path = fight_record_dir + "/hands_" + to_string(i + 2) + "_whiteDone.png";
+                if (plot_state_instantly)
+                    system(string("python3 plot_state_and_output.py board_content_for_plotting.txt " + output_path +
+                                  " output_properties_for_plotting.txt").c_str());
+            }
             ///////////////////////////////
             // Plot 2d plane
             ///////////////////////////////
-            print_vector_2d_plane(mcts_white.first_layer_value_sum_distribution("valueSum"));
-            print_vector_2d_plane(mcts_white.first_layer_visit_cnt_distribution("visitCnt"));
-            print_vector_2d_plane(mcts_white.first_layer_value_mean_distribution("valueMean"));
-            cout << "Get move: ";
-            move.print_movement();
+            if (debug) {
+                print_vector_2d_plane(mcts_white.first_layer_value_sum_distribution("valueSum"));
+                print_vector_2d_plane(mcts_white.first_layer_visit_cnt_distribution("visitCnt"));
+                print_vector_2d_plane(mcts_white.first_layer_value_mean_distribution("valueMean"));
+                cout << "Get move: ";
+                move.print_movement();
+            }
 
 
             cout << endl;

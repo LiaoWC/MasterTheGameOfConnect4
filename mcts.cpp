@@ -21,10 +21,12 @@
 #define EXPAND_NOT_PRUNE_PARENT 1
 #define EXPAND_PRUNE_PARENT 2
 #define EXPAND_ROOT_HAS_NO_CHILD_AFTER_PRUNED 3
+//
 
 typedef std::chrono::high_resolution_clock Time;
 typedef std::chrono::duration<double> sec;
 using namespace std;
+
 
 //////////////////////////////////////
 class Movement;
@@ -39,12 +41,30 @@ double ucb(int child_visiting_count,
         child_visiting_count = 1;
     if (parent_visit_cnt == 0)
         parent_visit_cnt = 1;
-    double p;
-    p = log10((double) parent_visit_cnt) / (double) child_visiting_count;
-    p = pow(p, 0.5) * 1.414;
-    p = p + (double) winning_count / (double) child_visiting_count;
-    return p;
+    double q, u;
+    u = log10((double) parent_visit_cnt) / (double) child_visiting_count;
+    u = pow(u, 0.5) * 1.414;
+    q = (double) winning_count / (double) child_visiting_count;
+    return q + u;
+}
 
+// PUCT: Predictor + UCB applied to trees
+// TODO: Make it easy to tune the hyper-parameters
+double puct(int child_visiting_count,
+            int winning_count,
+            double parent_visit_cnt, double prior_value) {
+    if (child_visiting_count == 0)
+        child_visiting_count = 1;
+    if (parent_visit_cnt == 0)
+        parent_visit_cnt = 1;
+    double q, u;
+    // Exploration
+    q = (double) winning_count / (double) child_visiting_count;
+    // Exploitation
+    double puct_constant = 1.414;
+    u = puct_constant * prior_value * (pow((double) parent_visit_cnt, 0.5) / (double) (1 + child_visiting_count));
+    // PUCT = Q(s,a) + U(s,a)
+    return q + u;
 }
 
 template<typename T>
@@ -94,7 +114,7 @@ public:
         cout << "[" << l << ", " << x << ", " << y << "]" << endl;
     }
 
-    friend bool operator==(const Movement& m1, const Movement& m2);
+    friend bool operator==(const Movement &m1, const Movement &m2);
 };
 
 
@@ -269,7 +289,7 @@ public:
         children.clear();
     }
 
-    shared_ptr<Node> select() {
+    shared_ptr<Node> select(bool prior_value) {
         shared_ptr<Node> cur = shared_from_this();
         while (true) {
             if (cur->is_leaf)
@@ -290,7 +310,11 @@ public:
                         ucb_results.emplace_back(NEG_INFINITE);
                         continue;;
                     } else {
-                        ucb_result = ucb(temp_node->visiting_count, temp_node->value_sum, cur->visiting_count);
+                        if (prior_value) {
+                            ucb_result = puct(temp_node->visiting_count, temp_node->value_sum, cur->visiting_count,temp_node->move.prior);
+                        } else {
+                            ucb_result = ucb(temp_node->visiting_count, temp_node->value_sum, cur->visiting_count);
+                        }
                     }
 
                     ucb_results.emplace_back(ucb_result);
@@ -317,10 +341,15 @@ public:
         }
     }
 
-    int expand(bool dominant_pruning) {
+    int expand(bool dominant_pruning, bool prior_value) {
         this->is_leaf = false;
         int temp_board[6][6][6];
-        vector<Movement> legal_moves = this->get_next_possible_move();
+        vector<Movement> legal_moves;
+        if (prior_value) {
+            legal_moves = this->gen_block_move();
+        } else {
+            legal_moves = this->get_next_possible_move();
+        }
         vector<int> dominant_move_indices;
         vector<int> not_dominant_move_indices;
         shared_ptr<Node> parent_shared_ptr;
@@ -600,9 +629,9 @@ public:
             }
         }
         vector<Movement> block_moves;
-        for (auto& all_possible_move : all_possible_moves) {
+        for (auto &all_possible_move : all_possible_moves) {
             flag = true;
-            for (auto& dir : dirs) {
+            for (auto &dir : dirs) {
                 unique_ptr<int[]> new_pos_a(new int[3]);
                 new_pos_a[0] = all_possible_move.l + dir[0];
                 new_pos_a[1] = all_possible_move.x + dir[1];
@@ -806,7 +835,8 @@ public:
     Movement run(bool playout_use_block_move,
                  bool reward_add_score_diff,
                  bool first_hand_center,
-                 bool dominate_pruning) {
+                 bool dominate_pruning,
+                 bool prior_value) {
 
         // If it is first hand (black)
         if (first_hand_center && root->hands == 0) {
@@ -836,7 +866,7 @@ public:
             /////////////////////////////////////////////////////
             // SELECT
             /////////////////////////////////////////////////////
-            shared_ptr<Node> temp_node = this->root->select();
+            shared_ptr<Node> temp_node = this->root->select(prior_value);
             // Check if selected node is terminated (e.g. hands == 64 or other factors)
             if (temp_node->hands >= 64) { // Number of hands reaches limit.
                 temp_node->is_terminated = true;
@@ -845,7 +875,7 @@ public:
             // EXPAND
             /////////////////////////////////////////////////////
             if (!temp_node->is_terminated) {
-                int expand_rt = temp_node->expand(dominate_pruning);
+                int expand_rt = temp_node->expand(dominate_pruning, prior_value);
                 // expand_rt==EXPAND_NOT_PRUNE_PARENT is ok
                 if (expand_rt == EXPAND_PRUNE_PARENT) {
                     continue; // Drop this simulation
@@ -900,11 +930,19 @@ public:
 
         //
         double winning_rate = NEG_INFINITE;
-        Movement ret;
+        Movement ret{-1, -1, -1, -1};
         for (const auto &temp_node : this->root->children) {
             if (temp_node->visiting_count == 0) {
                 cout << "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE" << endl;
                 continue;
+            }
+            // TODO: it seems there's node that ought to be pruned but still be picked up for playing next move
+            if (temp_node->is_pruned) {
+
+                cout << "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@" << endl;
+                continue;
+                // TODO: Modify codes to make DOMINATE PRUNING also really pruned root's children
+                //       It seems that I need to do this seems it can also test if it really erase vector elements.
             }
             //cout << temp_node->value_sum << " " << temp_node->visiting_count << endl;
             double value_mean = (double) temp_node->value_sum / (double) temp_node->visiting_count;
@@ -956,7 +994,7 @@ public:
         for (int i = 0; i < step; i++) {
             MCTS mcts(cur_node, max_simulation_cnt, max_simulation_time, true);
             cout << i + 1 << " " << flush;
-            Movement move = mcts.run(false, true, true, false);
+            Movement move = mcts.run(false, true, true, false, false);
             shared_ptr<Node> new_node = cur_node->get_node_after_playing(move);
             cur_node = new_node;
         }
@@ -1049,8 +1087,9 @@ int main() {
         Properties prop;
 
         // Black's turn
+        cout << "########### BLACK #####################" <<endl;
         MCTS mcts_black(cur_node, max_simulation_cnt, max_simulation_time, true);
-        move = mcts_black.run(false, false, true, true);
+        move = mcts_black.run(false, false, true, true, false);
         cur_node = cur_node->get_node_after_playing(move);
         cur_node->my_properties.print_properties();
 
@@ -1072,8 +1111,9 @@ int main() {
 
 
         // White's turn
+        cout << "########### WHITE #####################" <<endl;
         MCTS mcts_white(cur_node, max_simulation_cnt, max_simulation_time, true);
-        move = mcts_white.run(false, false, true, true);
+        move = mcts_white.run(false, false, true, true, true);
         cur_node = cur_node->get_node_after_playing(move);
         cur_node->my_properties.print_properties();
 

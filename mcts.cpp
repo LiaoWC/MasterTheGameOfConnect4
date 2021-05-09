@@ -12,7 +12,8 @@
 #include <algorithm>
 #include <iomanip>
 
-#define  NEG_INFINITE -9999999
+#define NEG_INFINITE -9999999
+#define POS_INFINITE 9999999
 #define ILLEGAL_COLOR = -1
 #define EMPTY_COLOR 0
 #define BLACK_PLAYER_COLOR 1
@@ -33,40 +34,6 @@ class Movement;
 
 bool operator==(const Movement &m1, const Movement &m2);
 //////////////////////////////////////
-
-double ucb(int child_visiting_count,
-           int winning_count,
-           double parent_visit_cnt) {
-    if (child_visiting_count == 0)
-        child_visiting_count = 1;
-    if (parent_visit_cnt == 0)
-        parent_visit_cnt = 1;
-    double q, u;
-    u = log10((double) parent_visit_cnt) / (double) child_visiting_count;
-    u = pow(u, 0.5) * 1.414;
-    q = (double) winning_count / (double) child_visiting_count;
-    return q + u;
-}
-
-// PUCT: Predictor + UCB applied to trees
-// TODO: Make it easy to tune the hyper-parameters
-double puct(int child_visiting_count,
-            int winning_count,
-            double parent_visit_cnt, double prior_value) {
-    if (child_visiting_count == 0)
-        child_visiting_count = 1;
-    if (parent_visit_cnt == 0)
-        parent_visit_cnt = 1;
-    double q, u;
-    // Exploration
-    q = (double) winning_count / (double) child_visiting_count;
-    // Exploitation
-    double puct_constant = 1.414;
-    u = puct_constant  * (pow((double) parent_visit_cnt, 0.5) / (double) (1 + child_visiting_count));
-    u += prior_value;
-    // PUCT = Q(s,a) + U(s,a)
-    return q + u;
-}
 
 template<typename T>
 void print_vector_2d_plane(vector<vector<T>> plane) {
@@ -288,6 +255,88 @@ public:
         children.clear();
     }
 
+    static double ucb(int child_visiting_count,
+                      int winning_count,
+                      double parent_visit_cnt) {
+        if (child_visiting_count == 0)
+            child_visiting_count = 1;
+        if (parent_visit_cnt == 0)
+            parent_visit_cnt = 1;
+        double q, u;
+        u = log10((double) parent_visit_cnt) / (double) child_visiting_count;
+        u = pow(u, 0.5) * 1.414;
+        q = (double) winning_count / (double) child_visiting_count;
+        return q + u;
+    }
+
+    // PUCT: Predictor + UCB applied to trees
+    // TODO: Make it easy to tune the hyper-parameters
+    static double puct(int child_visiting_count,
+                       int winning_count,
+                       double parent_visit_cnt, double prior_value) {
+        if (child_visiting_count == 0)
+            child_visiting_count = 1;
+        if (parent_visit_cnt == 0)
+            parent_visit_cnt = 1;
+        double q, u;
+        // Exploration
+        q = (double) winning_count / (double) child_visiting_count;
+        // Exploitation
+        double puct_constant = 1.414;
+        u = puct_constant * (pow((double) parent_visit_cnt, 0.5) / (double) (1 + child_visiting_count));
+        u += prior_value;
+        // PUCT = Q(s,a) + U(s,a)
+        return q + u;
+    }
+
+
+//    shared_ptr<Node> select(bool prior_value) {
+//        shared_ptr<Node> cur = shared_from_this();
+//        while (true) {
+//            if (cur->is_leaf)
+//                return cur;
+//            else {
+//                // double cur_max_ucb_result = -1;
+//                double cur_max_ucb_result = NEG_INFINITE;
+//                vector<double> ucb_results;
+//                for (unsigned int i = 0; i < cur->children.size(); i++) {
+//                    shared_ptr<Node> temp_node = cur->children[i];
+//                    double ucb_result = NEG_INFINITE;
+//                    if (cur->is_root && temp_node->visiting_count < 1) {
+//                        ucb_result = POS_INFINITE;
+//                    } else {
+//                        if (prior_value) {
+//                            ucb_result = puct(temp_node->visiting_count, temp_node->value_sum, cur->visiting_count,
+//                                              temp_node->move.prior);
+//                        } else {
+//                            ucb_result = ucb(temp_node->visiting_count, temp_node->value_sum, cur->visiting_count);
+//                        }
+//                    }
+//
+//                    ucb_results.emplace_back(ucb_result);
+//                    if (ucb_result > cur_max_ucb_result) {
+//                        cur_max_ucb_result = ucb_result;
+//                    }
+//                }
+//                vector<unsigned int> max_value_idx;
+//                for (unsigned int i = 0; i < cur->children.size(); i++) {
+//                    if (ucb_results[i] == cur_max_ucb_result) {
+//                        max_value_idx.emplace_back(i);
+//                    }
+//                }
+//                if (max_value_idx.empty()) {
+//                    // We don't know if some nodes that has no children will be selected due to any reasons,
+//                    // so to make it safer, if the node selected isn't a leaf node but still has no child,
+//                    // we just return it as the select result.
+//                    return cur;
+//                }
+//                int random_number = rand() % max_value_idx.size();
+//                shared_ptr<Node> next_node = cur->children[max_value_idx[random_number]];
+//                cur = next_node;
+//            }
+//        }
+//    }
+
     shared_ptr<Node> select(bool prior_value) {
         shared_ptr<Node> cur = shared_from_this();
         while (true) {
@@ -299,12 +348,19 @@ public:
                 vector<double> ucb_results;
                 for (unsigned int i = 0; i < cur->children.size(); i++) {
                     shared_ptr<Node> temp_node = cur->children[i];
-                    double ucb_result;
-                    if (prior_value) {
-                        ucb_result = puct(temp_node->visiting_count, temp_node->value_sum, cur->visiting_count,
-                                          temp_node->move.prior);
+                    double ucb_result = NEG_INFINITE;
+                    if (cur->is_root && temp_node->visiting_count < 1) {
+                        ucb_result = POS_INFINITE;
                     } else {
-                        ucb_result = ucb(temp_node->visiting_count, temp_node->value_sum, cur->visiting_count);
+                        if (prior_value) {
+                            //  (-1) * value sum is the most important
+                            ucb_result =
+                                    puct(temp_node->visiting_count, (-1) * temp_node->value_sum, cur->visiting_count,
+                                         temp_node->move.prior);
+                        } else {
+                            ucb_result =
+                                    ucb(temp_node->visiting_count, (-1) * temp_node->value_sum, cur->visiting_count);
+                        }
                     }
 
                     ucb_results.emplace_back(ucb_result);
@@ -331,7 +387,7 @@ public:
         }
     }
 
-    int expand(bool dominant_pruning, bool prior_value) {
+    int expand(bool dominant_pruning, bool prior_value, bool not_check_dominant_on_first_layer) {
         this->is_leaf = false;
         int temp_board[6][6][6];
         vector<Movement> legal_moves;
@@ -397,8 +453,8 @@ public:
             //                       - If root's children all are pruned, use smaller mcts to random again.
             //                             In run(), we check if root has no children anymore. If it is,
             //                             we use the rest of time to do a new mcts run without pruning.
-
-            if (dominant_pruning) {
+            // P.S. We must ensure first layer children get at least one visit
+            if (dominant_pruning && !(parent_node_is_root && not_check_dominant_on_first_layer)) {
                 // Check if it is a dominant move or a regular move.
                 bool is_dominant = false;
                 if ((color == BLACK_PLAYER_COLOR && (new_properties.black_lines - my_properties.black_lines > 0))
@@ -439,9 +495,9 @@ public:
                         }
                         parent_shared_ptr->children.erase(parent_shared_ptr->children.begin() + idx);
 //                        cout << "Hola" << endl;
-                       if(parent_node_is_root){
-                           cout << "&&&&&&&&&&&&&&&&& prunedddd    " << endl;
-                       }
+                        if (parent_node_is_root) {
+                            cout << "&&&&&&&&&&&&&&&&& prunedddd    " << endl;
+                        }
                         return EXPAND_PRUNE_PARENT;
                     } else { // Root node
                         dominant_move_indices.emplace_back(legal_move_idx);
@@ -479,7 +535,7 @@ public:
         }
         vector<Movement> movements;
         movements.clear();
-        for (int i = hands; i < 64; i++) {
+        for (int i = this->hands; i < 64; i++) {
             vector<Movement> considered_moves;
             // Use block move to filter moves we consider
             // The block_moves function will return all legal moves if find no block moves
@@ -501,16 +557,28 @@ public:
             movements.push_back(temp_move);
         }
         Properties end_properties = get_state_properties_b(board, my_properties, movements);
-        if (hands % 2 == 0) {
+        if (this->is_root) {
+            cout << "Playout hands: " << this->hands << endl;
+        }
+        if (auto ppp = this->parent.lock()) {
+            if (ppp->is_root) {
+                //cout << "Playout hands: " << this->hands << endl;
+            }
+        }
+        if (this->hands % 2 == 0) {
             if (end_properties.black_points > end_properties.white_points)
                 return 1;
+            else if (end_properties.black_points < end_properties.white_points)
+                return -1;
             else
                 return 0;
         } else {
             if (end_properties.white_points > end_properties.black_points)
                 return 1;
-            else
+            else if ((end_properties.white_points < end_properties.black_points))
                 return -1;
+            else
+                return 0;
         }
     }
 
@@ -558,6 +626,10 @@ public:
             }
         } else {
             while (true) {
+//                if(this->move.l==0&& this->move.x==2&&this->move.y==0 && this->children.){
+//                    cout << (flag?"me":"opponent")<<endl;
+//                }
+
                 if (flag) {
                     cur->value_sum += reward;
                     flag = false;
@@ -715,26 +787,26 @@ public:
             }
         }
         int dirs2[13][3] = {
-                {0, 0, 1},
-                {0, 1, 0},
-                {1, 0, 0},
-                {0, 1, 1},
-                {1, 0, 1},
-                {1, 1, 0},
-                {0, 1, -1},
-                {1, 0, -1},
-                {1, -1, 0},
-                {1, 1, 1},
-                {1, 1, -1},
-                {1, -1, 1},
-                {-1, 1, 1}
+                {0,  0,  1},
+                {0,  1,  0},
+                {1,  0,  0},
+                {0,  1,  1},
+                {1,  0,  1},
+                {1,  1,  0},
+                {0,  1,  -1},
+                {1,  0,  -1},
+                {1,  -1, 0},
+                {1,  1,  1},
+                {1,  1,  -1},
+                {1,  -1, 1},
+                {-1, 1,  1}
         };
         vector<Movement> block_moves;
-        for (auto& all_possible_move : all_possible_moves) {
+        for (auto &all_possible_move : all_possible_moves) {
             double temp_p = 0;
             flag = true;
             flag2 = true;
-            for (auto& dir : dirs) {
+            for (auto &dir : dirs) {
                 unique_ptr<int[]> new_pos(new int[3]);
                 new_pos[0] = all_possible_move.l + dir[0];
                 new_pos[1] = all_possible_move.x + dir[1];
@@ -774,7 +846,7 @@ public:
             int i = all_possible_move.x;
             int j = all_possible_move.y;
             //cout << l << " " << i << " " << j << " " << c << endl;
-            for (auto& dir2 : dirs2) {
+            for (auto &dir2 : dirs2) {
                 int cnt = 1;
                 for (int mul = 1; mul <= 2; mul++) {
                     unique_ptr<int[]> new_pos(new int[3]);
@@ -845,6 +917,7 @@ public:
 
         Properties new_properties = get_state_properties_b(temp_board, this->my_properties, movements);
         temp_board[next_move.l][next_move.x][next_move.y] = color;
+        cout << "aaaaaaaaaaaaaa  " << this->hands << endl;
         shared_ptr<Node> ret = make_shared<Node>(temp_board, this->hands + 1, next_move, new_properties);
         return ret;
     }
@@ -933,10 +1006,10 @@ public:
     shared_ptr<Node> root;
     int cur_simulation_cnt;
     int max_simulation_cnt;
-    int max_time_sec;
+    double max_time_sec;
     bool print_simulation_cnt;
 
-    MCTS(shared_ptr<Node> root, int max_simulation_cnt, int max_time_sec, bool print_simulation_cnt) {
+    MCTS(shared_ptr<Node> root, int max_simulation_cnt, double max_time_sec, bool print_simulation_cnt) {
         this->root = std::move(root);
         this->max_simulation_cnt = max_simulation_cnt;
         this->max_time_sec = max_time_sec;
@@ -968,11 +1041,12 @@ public:
                  bool reward_add_score_diff,
                  bool first_hand_center,
                  bool dominate_pruning,
-                 bool prior_value) {
+                 bool prior_value,
+                 bool not_check_dominate_pruning_on_first_layer) {
 
         // If it is first hand (black)
-        if (first_hand_center && root->hands == 0) {
-            return get_rand_first_hand_center_move(false);
+        if (first_hand_center && root->hands == 0 && this->root->board[0][2][2] == 0) {
+            return {0, 2, 2, 1};
         }
 
 
@@ -1012,7 +1086,8 @@ public:
             // EXPAND
             /////////////////////////////////////////////////////
             if (!temp_node->is_terminated) {
-                int expand_rt = temp_node->expand(dominate_pruning, prior_value);
+                int expand_rt = temp_node->expand(dominate_pruning, prior_value,
+                                                  not_check_dominate_pruning_on_first_layer);
                 // expand_rt==EXPAND_NOT_PRUNE_PARENT is ok
                 if (expand_rt == EXPAND_PRUNE_PARENT) {
                     continue; // Drop this simulation
@@ -1079,22 +1154,18 @@ public:
         // Re run MCTS if root's children are all pruned but not because root has any dominant moves
         /////////////////////////////////////////////////////////////////////////////////////////////
         if (!root_has_dominant_move && this->root->is_terminated) {
-//            cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" << endl;
-//            cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" << endl;
-//            cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" << endl;
-//            cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" << endl;
-//            cout << "root children size: " << this->root->children.size() << endl;
             shared_ptr<Node> new_root = make_shared<Node>(this->root->board, this->root->hands, this->root->move,
                                                           this->root->my_properties);
             auto end = Time::now();
             sec duration = Time::now() - start;
             cout << "Has used " << duration.count() << " sec" << endl;
-            int rest_of_time = (int) ((double) (this->max_time_sec) - duration.count());
-            int rerun_time = max(1, rest_of_time);
+            double rest_of_time = ((double) (this->max_time_sec) - duration.count());
+            double rerun_time = std::max(1., rest_of_time);
             MCTS mcts(new_root, 999999, rerun_time, true);
             cout << "Re-mcts-run with remained time: " << rerun_time << " sec." << endl;
             // Run mcts with simple settings
-            Movement new_move = mcts.run(false, false, true, false, false);
+            cout << new_root->hands << " DDDDDDDDDDDDD" << endl;
+            Movement new_move = mcts.run(false, false, false, false, false, false);
             this->root = new_root;
             return new_move;
         }
@@ -1162,7 +1233,7 @@ public:
         for (int i = 0; i < step; i++) {
             MCTS mcts(cur_node, max_simulation_cnt, max_simulation_time, true);
             cout << i + 1 << " " << flush;
-            Movement move = mcts.run(false, true, true, false, false);
+            Movement move = mcts.run(false, false, false, false, false, false);
             shared_ptr<Node> new_node = cur_node->get_node_after_playing(move);
             cur_node = new_node;
         }
@@ -1244,11 +1315,28 @@ int main() {
 
     // Fight
     string fight_record_dir = "fight_dir";
-    int max_simulation_cnt = 100;
+    int max_simulation_cnt = 9999999;
     int max_simulation_time = 1;
     bool plot_state_instantly = true;
     shared_ptr<Node> cur_node = MCTS::get_init_node();
-    for (int i = 0; i < 64; i += 2) {
+
+//    Movement m1(0, 2, 1, 2);
+//    Movement m11(0, 3, 1, 1);
+//    Movement m2(0, 2, 2, 2);
+//    Movement m22(0, 3, 2, 1);
+//    Movement m3(0, 2, 3, 2);
+//    Movement m33(1, 2, 1, 1);
+//    cur_node = cur_node->get_node_after_playing(m11);
+//    cur_node = cur_node->get_node_after_playing(m1);
+//
+//    cur_node = cur_node->get_node_after_playing(m22);
+//    cur_node = cur_node->get_node_after_playing(m2);
+//
+//    cur_node = cur_node->get_node_after_playing(m33);
+//    cur_node = cur_node->get_node_after_playing(m3);
+
+
+    for (int i = cur_node->hands; i < 64; i += 2) {
         cout << "================ i = " << i << " =================" << endl;
         Movement move;
         string output_path;
@@ -1257,7 +1345,7 @@ int main() {
         // Black's turn
         cout << "########### BLACK #####################" << endl;
         MCTS mcts_black(cur_node, max_simulation_cnt, max_simulation_time, true);
-        move = mcts_black.run(false, false, true, true, true);
+        move = mcts_black.run(false, false, true, true, true, false);
         cur_node = cur_node->get_node_after_playing(move);
         cur_node->my_properties.print_properties();
 
@@ -1281,7 +1369,7 @@ int main() {
         // White's turn
         cout << "########### WHITE #####################" << endl;
         MCTS mcts_white(cur_node, max_simulation_cnt, max_simulation_time, true);
-        move = mcts_white.run(false, false, true, true, true);
+        move = mcts_white.run(false, false, true, true, true, false);
         cur_node = cur_node->get_node_after_playing(move);
         cur_node->my_properties.print_properties();
 

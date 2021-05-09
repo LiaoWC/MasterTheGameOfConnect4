@@ -405,19 +405,19 @@ public:
                     || (color = WHITE_PLAYER_COLOR && (new_properties.white_lines - my_properties.white_lines > 0))) {
                     is_dominant = true;
                 }
-                if(is_root){
-                    cout << "####################################### RRRRR @@@@@@"<<endl;
-                    for(auto &child: this->children){
-                        child->move.print_movement();
-                    }
-                }
-                if (is_dominant && parent_node_is_root){
-                    cout << "Is domiantn: ";
-                    this->move.print_movement();
-                    temp_move.print_movement();
-                    my_properties.print_properties();
-                    new_properties.print_properties();
-                }
+//                if(is_root){
+//                    cout << "####################################### RRRRR @@@@@@"<<endl;
+//                    for(auto &child: this->children){
+//                        child->move.print_movement();
+//                    }
+//                }
+//                if (is_dominant && parent_node_is_root){
+//                    cout << "Is domiantn: ";
+//                    this->move.print_movement();
+//                    temp_move.print_movement();
+//                    my_properties.print_properties();
+//                    new_properties.print_properties();
+//                }
                 //
                 if (is_dominant) {
                     if (!is_root) {
@@ -438,6 +438,7 @@ public:
                             }
                         }
                         parent_shared_ptr->children.erase(parent_shared_ptr->children.begin() + idx);
+//                        cout << "Hola" << endl;
                        if(parent_node_is_root){
                            cout << "&&&&&&&&&&&&&&&&& prunedddd    " << endl;
                        }
@@ -598,8 +599,104 @@ public:
         return ret;
     }
 
+//    vector<Movement> gen_block_move() {
+//        bool flag = true;
+//        vector<Movement> all_possible_moves = this->get_next_possible_move();
+//        int opponent_color = (this->hands % 2 == 0) ? 2 : 1;
+//        int self_color = (this->hands % 2 == 0) ? 1 : 2;
+//        int dirs[26][3];
+//        int cnt = 0;
+//        for (int l = -1; l <= 1; l++) {
+//            for (int i = -1; i <= 1; i++) {
+//                for (int j = -1; j <= 1; j++) {
+//                    if (l == 0 && i == 0 && j == 0)
+//                        continue;
+//                    dirs[cnt][0] = l;
+//                    dirs[cnt][1] = i;
+//                    dirs[cnt][2] = j;
+//                    cnt++;
+//                }
+//            }
+//        }
+//        vector<Movement> block_moves;
+//        for (auto &all_possible_move : all_possible_moves) {
+//            flag = true;
+//            for (auto &dir : dirs) {
+//                unique_ptr<int[]> new_pos_a(new int[3]);
+//                new_pos_a[0] = all_possible_move.l + dir[0];
+//                new_pos_a[1] = all_possible_move.x + dir[1];
+//                new_pos_a[2] = all_possible_move.y + dir[2];
+//
+//                unique_ptr<int[]> new_pos_b(new int[3]);
+//                new_pos_b[0] = all_possible_move.l + dir[0];
+//                new_pos_b[1] = all_possible_move.x + dir[1];
+//                new_pos_b[2] = all_possible_move.y + dir[2];
+//                int l = new_pos_b[0], i = new_pos_b[1], j = new_pos_b[2];
+//                if (boundary_test(new_pos_b) && this->board[l][i][j] == self_color) {
+//                    new_pos_b[0] += dir[0];
+//                    new_pos_b[1] += dir[1];
+//                    new_pos_b[2] += dir[2];
+//                    l = new_pos_b[0];
+//                    i = new_pos_b[1];
+//                    j = new_pos_b[2];
+//                    if (boundary_test(new_pos_b) && this->board[l][i][j] == self_color) {
+//                        Movement block_move_b;
+//                        block_move_b.l = all_possible_move.l;
+//                        block_move_b.x = all_possible_move.x;
+//                        block_move_b.y = all_possible_move.y;
+//                        block_move_b.color = self_color;
+//                        block_move_b.prior += block_move_b.base_c * 2;
+//                        block_moves.push_back(block_move_b);
+//                        flag = false;
+//                    }
+//                }
+//
+//                l = new_pos_a[0];
+//                i = new_pos_a[1];
+//                j = new_pos_a[2];
+//                if (!boundary_test(new_pos_a) || this->board[l][i][j] != opponent_color)
+//                    continue;
+//                new_pos_a[0] += dir[0];
+//                new_pos_a[1] += dir[1];
+//                new_pos_a[2] += dir[2];
+//                l = new_pos_a[0];
+//                i = new_pos_a[1];
+//                j = new_pos_a[2];
+//                if (!boundary_test(new_pos_a) || this->board[l][i][j] != opponent_color)
+//                    continue;
+//                Movement block_move_a;
+//                block_move_a.l = all_possible_move.l;
+//                block_move_a.x = all_possible_move.x;
+//                block_move_a.y = all_possible_move.y;
+//                block_move_a.color = self_color;
+//                block_move_a.prior += block_move_a.base_c;
+//                block_moves.push_back(block_move_a);
+//                flag = false;
+//            }
+//            if (flag) {
+//                Movement block_move;
+//                block_move.l = all_possible_move.l;
+//                block_move.x = all_possible_move.x;
+//                block_move.y = all_possible_move.y;
+//                block_move.color = self_color;
+//                block_moves.push_back(block_move);
+//            }
+//        }
+//        srand(time(nullptr));
+//        return block_moves;
+//    }
+
     vector<Movement> gen_block_move() {
+        int temp_state[6][6][6];
+        for (int l = 0; l < 6; l++) {
+            for (int i = 0; i < 6; i++) {
+                for (int j = 0; j < 6; j++) {
+                    temp_state[l][i][j] = this->board[l][i][j];
+                }
+            }
+        }
         bool flag = true;
+        bool flag2 = true;
         vector<Movement> all_possible_moves = this->get_next_possible_move();
         int opponent_color = (this->hands % 2 == 0) ? 2 : 1;
         int self_color = (this->hands % 2 == 0) ? 1 : 2;
@@ -617,62 +714,108 @@ public:
                 }
             }
         }
+        int dirs2[13][3] = {
+                {0, 0, 1},
+                {0, 1, 0},
+                {1, 0, 0},
+                {0, 1, 1},
+                {1, 0, 1},
+                {1, 1, 0},
+                {0, 1, -1},
+                {1, 0, -1},
+                {1, -1, 0},
+                {1, 1, 1},
+                {1, 1, -1},
+                {1, -1, 1},
+                {-1, 1, 1}
+        };
         vector<Movement> block_moves;
-        for (auto &all_possible_move : all_possible_moves) {
+        for (auto& all_possible_move : all_possible_moves) {
+            double temp_p = 0;
             flag = true;
-            for (auto &dir : dirs) {
-                unique_ptr<int[]> new_pos_a(new int[3]);
-                new_pos_a[0] = all_possible_move.l + dir[0];
-                new_pos_a[1] = all_possible_move.x + dir[1];
-                new_pos_a[2] = all_possible_move.y + dir[2];
+            flag2 = true;
+            for (auto& dir : dirs) {
+                unique_ptr<int[]> new_pos(new int[3]);
+                new_pos[0] = all_possible_move.l + dir[0];
+                new_pos[1] = all_possible_move.x + dir[1];
+                new_pos[2] = all_possible_move.y + dir[2];
 
-                unique_ptr<int[]> new_pos_b(new int[3]);
-                new_pos_b[0] = all_possible_move.l + dir[0];
-                new_pos_b[1] = all_possible_move.x + dir[1];
-                new_pos_b[2] = all_possible_move.y + dir[2];
-                int l = new_pos_b[0], i = new_pos_b[1], j = new_pos_b[2];
-                if (boundary_test(new_pos_b) && this->board[l][i][j] == self_color) {
-                    new_pos_b[0] += dir[0];
-                    new_pos_b[1] += dir[1];
-                    new_pos_b[2] += dir[2];
-                    l = new_pos_b[0];
-                    i = new_pos_b[1];
-                    j = new_pos_b[2];
-                    if (boundary_test(new_pos_b) && this->board[l][i][j] == self_color) {
-                        Movement block_move_b;
-                        block_move_b.l = all_possible_move.l;
-                        block_move_b.x = all_possible_move.x;
-                        block_move_b.y = all_possible_move.y;
-                        block_move_b.color = self_color;
-                        block_move_b.prior += block_move_b.base_c * 2;
-                        block_moves.push_back(block_move_b);
-                        flag = false;
-                    }
-                }
-
-                l = new_pos_a[0];
-                i = new_pos_a[1];
-                j = new_pos_a[2];
-                if (!boundary_test(new_pos_a) || this->board[l][i][j] != opponent_color)
+                int l = new_pos[0];
+                int i = new_pos[1];
+                int j = new_pos[2];
+                if (!boundary_test(new_pos) || this->board[l][i][j] != opponent_color)
                     continue;
-                new_pos_a[0] += dir[0];
-                new_pos_a[1] += dir[1];
-                new_pos_a[2] += dir[2];
-                l = new_pos_a[0];
-                i = new_pos_a[1];
-                j = new_pos_a[2];
-                if (!boundary_test(new_pos_a) || this->board[l][i][j] != opponent_color)
+                new_pos[0] += dir[0];
+                new_pos[1] += dir[1];
+                new_pos[2] += dir[2];
+                l = new_pos[0];
+                i = new_pos[1];
+                j = new_pos[2];
+                if (!boundary_test(new_pos) || this->board[l][i][j] != opponent_color)
                     continue;
-                Movement block_move_a;
-                block_move_a.l = all_possible_move.l;
-                block_move_a.x = all_possible_move.x;
-                block_move_a.y = all_possible_move.y;
-                block_move_a.color = self_color;
-                block_move_a.prior += block_move_a.base_c;
-                block_moves.push_back(block_move_a);
+                new_pos[0] += dir[0];
+                new_pos[1] += dir[1];
+                new_pos[2] += dir[2];
+                l = new_pos[0];
+                i = new_pos[1];
+                j = new_pos[2];
+                if (!boundary_test(new_pos) || this->board[l][i][j] == self_color)
+                    continue;
+                Movement block_move;
+                block_move.l = all_possible_move.l;
+                block_move.x = all_possible_move.x;
+                block_move.y = all_possible_move.y;
+                block_move.color = self_color;
+                block_move.prior += block_move.base_c;
+                block_moves.push_back(block_move);
                 flag = false;
             }
-            if (flag) {
+            int l = all_possible_move.l;
+            int i = all_possible_move.x;
+            int j = all_possible_move.y;
+            //cout << l << " " << i << " " << j << " " << c << endl;
+            for (auto& dir2 : dirs2) {
+                int cnt = 1;
+                for (int mul = 1; mul <= 2; mul++) {
+                    unique_ptr<int[]> new_pos(new int[3]);
+                    new_pos[0] = l + dir2[0] * mul;
+                    new_pos[1] = i + dir2[1] * mul;
+                    new_pos[2] = j + dir2[2] * mul;
+                    if (!boundary_test(new_pos))
+                        break;
+                    if (temp_state[new_pos[0]][new_pos[1]][new_pos[2]] != self_color)
+                        break;
+                    cnt += 1;
+                }
+                for (int mul = 1; mul <= 2; mul++) {
+                    unique_ptr<int[]> new_pos(new int[3]);
+                    new_pos[0] = l + dir2[0] * -mul;
+                    new_pos[1] = i + dir2[1] * -mul;
+                    new_pos[2] = j + dir2[2] * -mul;
+                    if (!boundary_test(new_pos))
+                        break;
+                    if (temp_state[new_pos[0]][new_pos[1]][new_pos[2]] != self_color)
+                        break;
+                    cnt += 1;
+                }
+                //cout << "cnt: " << cnt << endl;
+                while (cnt >= 3) {
+                    Movement temp_block_move;
+                    temp_p += temp_block_move.base_c * 2;
+                    flag2 = false;
+                    cnt--;
+                }
+            }
+            if (!flag2) {
+                Movement block_move;
+                block_move.l = all_possible_move.l;
+                block_move.x = all_possible_move.x;
+                block_move.y = all_possible_move.y;
+                block_move.color = self_color;
+                block_move.prior = temp_p;
+                block_moves.push_back(block_move);
+            }
+            if (flag && flag2) {
                 Movement block_move;
                 block_move.l = all_possible_move.l;
                 block_move.x = all_possible_move.x;
@@ -936,11 +1079,11 @@ public:
         // Re run MCTS if root's children are all pruned but not because root has any dominant moves
         /////////////////////////////////////////////////////////////////////////////////////////////
         if (!root_has_dominant_move && this->root->is_terminated) {
-            cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" << endl;
-            cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" << endl;
-            cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" << endl;
-            cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" << endl;
-            cout << "root children size: " << this->root->children.size() << endl;
+//            cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" << endl;
+//            cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" << endl;
+//            cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" << endl;
+//            cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" << endl;
+//            cout << "root children size: " << this->root->children.size() << endl;
             shared_ptr<Node> new_root = make_shared<Node>(this->root->board, this->root->hands, this->root->move,
                                                           this->root->my_properties);
             auto end = Time::now();
@@ -1101,7 +1244,7 @@ int main() {
 
     // Fight
     string fight_record_dir = "fight_dir";
-    int max_simulation_cnt = 99999999;
+    int max_simulation_cnt = 100;
     int max_simulation_time = 1;
     bool plot_state_instantly = true;
     shared_ptr<Node> cur_node = MCTS::get_init_node();
@@ -1114,7 +1257,7 @@ int main() {
         // Black's turn
         cout << "########### BLACK #####################" << endl;
         MCTS mcts_black(cur_node, max_simulation_cnt, max_simulation_time, true);
-        move = mcts_black.run(false, false, true, true, false);
+        move = mcts_black.run(false, false, true, true, true);
         cur_node = cur_node->get_node_after_playing(move);
         cur_node->my_properties.print_properties();
 

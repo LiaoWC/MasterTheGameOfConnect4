@@ -1,5 +1,20 @@
 # 
 
+```shell
+pip install pytest
+pip install pybind11
+```
+sudo apt-get install python3-dev  # for python3.x installs
+sudo apt-get install libeigen3-dev
+```shell
+# If cannot find Eigen
+sudo ln -s /usr/include/eigen3/Eigen /usr/include/Eigen
+```
+cmake
+pytest
+pybind11
+
+
 ## TODO / Direction?
 - [ ] Multi-threads/processes??? 
 

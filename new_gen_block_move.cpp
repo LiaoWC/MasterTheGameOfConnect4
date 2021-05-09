@@ -1,5 +1,14 @@
-vector<Movement> gen_block_move() {    
+    vector<Movement> gen_block_move() {
+        int temp_state[6][6][6];
+        for (int l = 0; l < 6; l++) {
+            for (int i = 0; i < 6; i++) {
+                for (int j = 0; j < 6; j++) {
+                    temp_state[l][i][j] = this->board[l][i][j];
+                }
+            }
+        }
         bool flag = true;
+        bool flag2 = true;
         vector<Movement> all_possible_moves = this->get_next_possible_move();
         int opponent_color = (this->hands % 2 == 0) ? 2 : 1;
         int self_color = (this->hands % 2 == 0) ? 1 : 2;
@@ -17,62 +26,108 @@ vector<Movement> gen_block_move() {
                 }
             }
         }
+        int dirs2[13][3] = {
+            {0, 0, 1},
+            {0, 1, 0},
+            {1, 0, 0},
+            {0, 1, 1},
+            {1, 0, 1},
+            {1, 1, 0},
+            {0, 1, -1},
+            {1, 0, -1},
+            {1, -1, 0},
+            {1, 1, 1},
+            {1, 1, -1},
+            {1, -1, 1},
+            {-1, 1, 1}
+        };
         vector<Movement> block_moves;
         for (auto& all_possible_move : all_possible_moves) {
+            double temp_p = 0;
             flag = true;
+            flag2 = true;
             for (auto& dir : dirs) {
-                unique_ptr<int[]> new_pos_a(new int[3]);
-                new_pos_a[0] = all_possible_move.l + dir[0];
-                new_pos_a[1] = all_possible_move.x + dir[1];
-                new_pos_a[2] = all_possible_move.y + dir[2];
+                unique_ptr<int[]> new_pos(new int[3]);
+                new_pos[0] = all_possible_move.l + dir[0];
+                new_pos[1] = all_possible_move.x + dir[1];
+                new_pos[2] = all_possible_move.y + dir[2];
 
-                unique_ptr<int[]> new_pos_b(new int[3]);
-                new_pos_b[0] = all_possible_move.l + dir[0];
-                new_pos_b[1] = all_possible_move.x + dir[1];
-                new_pos_b[2] = all_possible_move.y + dir[2];
-                int l = new_pos_b[0], i = new_pos_b[1], j = new_pos_b[2];
-                if (boundary_test(new_pos_b) && this->board[l][i][j] == self_color) {
-                    new_pos_b[0] += dir[0];
-                    new_pos_b[1] += dir[1];
-                    new_pos_b[2] += dir[2];
-                    l = new_pos_b[0];
-                    i = new_pos_b[1];
-                    j = new_pos_b[2];
-                    if (boundary_test(new_pos_b) && this->board[l][i][j] == self_color) {
-                        Movement block_move_b;
-                        block_move_b.l = all_possible_move.l;
-                        block_move_b.x = all_possible_move.x;
-                        block_move_b.y = all_possible_move.y;
-                        block_move_b.color = self_color;
-                        block_move_b.p += block_move_b.c * 2;
-                        block_moves.push_back(block_move_b);
-                        flag = false;
-                    }
-                }
-
-                l = new_pos_a[0]; 
-                i = new_pos_a[1]; 
-                j = new_pos_a[2];
-                if (!boundary_test(new_pos_a) || this->board[l][i][j] != opponent_color)
+                int l = new_pos[0]; 
+                int i = new_pos[1]; 
+                int j = new_pos[2];
+                if (!boundary_test(new_pos) || this->board[l][i][j] != opponent_color)
                     continue;
-                new_pos_a[0] += dir[0];
-                new_pos_a[1] += dir[1];
-                new_pos_a[2] += dir[2];
-                l = new_pos_a[0];
-                i = new_pos_a[1];
-                j = new_pos_a[2];
-                if (!boundary_test(new_pos_a) || this->board[l][i][j] != opponent_color)
+                new_pos[0] += dir[0];
+                new_pos[1] += dir[1];
+                new_pos[2] += dir[2];
+                l = new_pos[0];
+                i = new_pos[1];
+                j = new_pos[2];
+                if (!boundary_test(new_pos) || this->board[l][i][j] != opponent_color)
                     continue;
-                Movement block_move_a;
-                block_move_a.l = all_possible_move.l;
-                block_move_a.x = all_possible_move.x;
-                block_move_a.y = all_possible_move.y;
-                block_move_a.color = self_color;
-                block_move_a.p += block_move_a.c;
-                block_moves.push_back(block_move_a);
+                new_pos[0] += dir[0];
+                new_pos[1] += dir[1];
+                new_pos[2] += dir[2];
+                l = new_pos[0];
+                i = new_pos[1];
+                j = new_pos[2];
+                if (!boundary_test(new_pos) || this->board[l][i][j] == self_color)
+                    continue;
+                Movement block_move;
+                block_move.l = all_possible_move.l;
+                block_move.x = all_possible_move.x;
+                block_move.y = all_possible_move.y;
+                block_move.color = self_color;
+                block_move.p += block_move.c;
+                block_moves.push_back(block_move);
                 flag = false;
             }
-            if (flag) {
+            int l = all_possible_move.l;
+            int i = all_possible_move.x;
+            int j = all_possible_move.y;
+            //cout << l << " " << i << " " << j << " " << c << endl;
+            for (auto& dir2 : dirs2) {
+                int cnt = 1;
+                for (int mul = 1; mul <= 2; mul++) {
+                    unique_ptr<int[]> new_pos(new int[3]);
+                    new_pos[0] = l + dir2[0] * mul;
+                    new_pos[1] = i + dir2[1] * mul;
+                    new_pos[2] = j + dir2[2] * mul;
+                    if (!boundary_test(new_pos))
+                        break;
+                    if (temp_state[new_pos[0]][new_pos[1]][new_pos[2]] != self_color)
+                        break;
+                    cnt += 1;
+                }
+                for (int mul = 1; mul <= 2; mul++) {
+                    unique_ptr<int[]> new_pos(new int[3]);
+                    new_pos[0] = l + dir2[0] * -mul;
+                    new_pos[1] = i + dir2[1] * -mul;
+                    new_pos[2] = j + dir2[2] * -mul;
+                    if (!boundary_test(new_pos))
+                        break;
+                    if (temp_state[new_pos[0]][new_pos[1]][new_pos[2]] != self_color)
+                        break;
+                    cnt += 1;
+                }
+                //cout << "cnt: " << cnt << endl;
+                while (cnt >= 3) {
+                    Movement temp_block_move;
+                    temp_p += temp_block_move.c * 2;
+                    flag2 = false;
+                    cnt--;
+                }
+            }
+            if (!flag2) {
+                Movement block_move;
+                block_move.l = all_possible_move.l;
+                block_move.x = all_possible_move.x;
+                block_move.y = all_possible_move.y;
+                block_move.color = self_color;
+                block_move.p = temp_p;
+                block_moves.push_back(block_move);
+            }
+            if (flag && flag2) {
                 Movement block_move;
                 block_move.l = all_possible_move.l;
                 block_move.x = all_possible_move.x;

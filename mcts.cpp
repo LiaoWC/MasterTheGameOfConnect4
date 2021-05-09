@@ -494,10 +494,6 @@ public:
                             }
                         }
                         parent_shared_ptr->children.erase(parent_shared_ptr->children.begin() + idx);
-//                        cout << "Hola" << endl;
-                        if (parent_node_is_root) {
-                            cout << "&&&&&&&&&&&&&&&&& prunedddd    " << endl;
-                        }
                         return EXPAND_PRUNE_PARENT;
                     } else { // Root node
                         dominant_move_indices.emplace_back(legal_move_idx);
@@ -1313,12 +1309,12 @@ int main() {
 //
 //    exit(1);
 
-    // Fight
-    string fight_record_dir = "fight_dir";
-    int max_simulation_cnt = 9999999;
-    int max_simulation_time = 1;
-    bool plot_state_instantly = true;
-    shared_ptr<Node> cur_node = MCTS::get_init_node();
+    for (int iii = 0; iii < 99999; iii++) {    // Fight
+        string fight_record_dir = "fight_dir";
+        int max_simulation_cnt = 9999999;
+        int max_simulation_time = 1;
+        bool plot_state_instantly = false;
+        shared_ptr<Node> cur_node = MCTS::get_init_node();
 
 //    Movement m1(0, 2, 1, 2);
 //    Movement m11(0, 3, 1, 1);
@@ -1336,64 +1332,65 @@ int main() {
 //    cur_node = cur_node->get_node_after_playing(m3);
 
 
-    for (int i = cur_node->hands; i < 64; i += 2) {
-        cout << "================ i = " << i << " =================" << endl;
-        Movement move;
-        string output_path;
-        Properties prop;
+        for (int i = cur_node->hands; i < 64; i += 2) {
+            cout << "================ i = " << i << " =================" << endl;
+            Movement move;
+            string output_path;
+            Properties prop;
 
-        // Black's turn
-        cout << "########### BLACK #####################" << endl;
-        MCTS mcts_black(cur_node, max_simulation_cnt, max_simulation_time, true);
-        move = mcts_black.run(false, false, true, true, true, false);
-        cur_node = cur_node->get_node_after_playing(move);
-        cur_node->my_properties.print_properties();
+            // Black's turn
+            cout << "########### BLACK #####################" << endl;
+            MCTS mcts_black(cur_node, max_simulation_cnt, max_simulation_time, true);
+            move = mcts_black.run(false, false, true, true, true, false);
+            cur_node = cur_node->get_node_after_playing(move);
+            cur_node->my_properties.print_properties();
 
-        //
-        cur_node->output_board_string_for_plot_state();
-        cur_node->my_properties.output_properties();
-        output_path = fight_record_dir + "/hands_" + to_string(i + 1) + "_blackDone.png";
-        if (plot_state_instantly)
-            system(string("python3 plot_state_and_output.py board_content_for_plotting.txt " + output_path +
-                          " output_properties_for_plotting.txt").c_str());
-        ///////////////////////////////
-        // Plot 2d plane
-        ///////////////////////////////
-        print_vector_2d_plane(mcts_black.first_layer_value_sum_distribution("valueSum"));
-        print_vector_2d_plane(mcts_black.first_layer_visit_cnt_distribution("visitCnt"));
-        print_vector_2d_plane(mcts_black.first_layer_value_mean_distribution("valueMean"));
-        cout << "Get move: ";
-        move.print_movement();
-
-
-        // White's turn
-        cout << "########### WHITE #####################" << endl;
-        MCTS mcts_white(cur_node, max_simulation_cnt, max_simulation_time, true);
-        move = mcts_white.run(false, false, true, true, true, false);
-        cur_node = cur_node->get_node_after_playing(move);
-        cur_node->my_properties.print_properties();
+            //
+            cur_node->output_board_string_for_plot_state();
+            cur_node->my_properties.output_properties();
+            output_path = fight_record_dir + "/hands_" + to_string(i + 1) + "_blackDone.png";
+            if (plot_state_instantly)
+                system(string("python3 plot_state_and_output.py board_content_for_plotting.txt " + output_path +
+                              " output_properties_for_plotting.txt").c_str());
+            ///////////////////////////////
+            // Plot 2d plane
+            ///////////////////////////////
+            print_vector_2d_plane(mcts_black.first_layer_value_sum_distribution("valueSum"));
+            print_vector_2d_plane(mcts_black.first_layer_visit_cnt_distribution("visitCnt"));
+            print_vector_2d_plane(mcts_black.first_layer_value_mean_distribution("valueMean"));
+            cout << "Get move: ";
+            move.print_movement();
 
 
-
-        //
-        cur_node->output_board_string_for_plot_state();
-        cur_node->my_properties.output_properties();
-        output_path = fight_record_dir + "/hands_" + to_string(i + 2) + "_whiteDone.png";
-        if (plot_state_instantly)
-            system(string("python3 plot_state_and_output.py board_content_for_plotting.txt " + output_path +
-                          " output_properties_for_plotting.txt").c_str());
-        ///////////////////////////////
-        // Plot 2d plane
-        ///////////////////////////////
-        print_vector_2d_plane(mcts_white.first_layer_value_sum_distribution("valueSum"));
-        print_vector_2d_plane(mcts_white.first_layer_visit_cnt_distribution("visitCnt"));
-        print_vector_2d_plane(mcts_white.first_layer_value_mean_distribution("valueMean"));
-        cout << "Get move: ";
-        move.print_movement();
+            // White's turn
+            cout << "########### WHITE #####################" << endl;
+            MCTS mcts_white(cur_node, max_simulation_cnt, max_simulation_time, true);
+            move = mcts_white.run(false, false, true, true, true, false);
+            cur_node = cur_node->get_node_after_playing(move);
+            cur_node->my_properties.print_properties();
 
 
-        cout << endl;
 
+            //
+            cur_node->output_board_string_for_plot_state();
+            cur_node->my_properties.output_properties();
+            output_path = fight_record_dir + "/hands_" + to_string(i + 2) + "_whiteDone.png";
+            if (plot_state_instantly)
+                system(string("python3 plot_state_and_output.py board_content_for_plotting.txt " + output_path +
+                              " output_properties_for_plotting.txt").c_str());
+            ///////////////////////////////
+            // Plot 2d plane
+            ///////////////////////////////
+            print_vector_2d_plane(mcts_white.first_layer_value_sum_distribution("valueSum"));
+            print_vector_2d_plane(mcts_white.first_layer_visit_cnt_distribution("visitCnt"));
+            print_vector_2d_plane(mcts_white.first_layer_value_mean_distribution("valueMean"));
+            cout << "Get move: ";
+            move.print_movement();
+
+
+            cout << endl;
+
+        }
     }
 
     ///////////////////////////////

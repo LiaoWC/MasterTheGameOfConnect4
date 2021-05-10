@@ -1,2 +1,16 @@
 .idea/
+.gradle/
 __pycache__/
+Testing/
+
+#
+*.cbp
+*.so
+*.out
+
+# CMake & Makefile
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+cmake-build-debug/

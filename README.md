@@ -1,5 +1,13 @@
 # 
+## Install
+```shell
+cmake .
+make
+```
+This project's executable file will be generated in this project's root directory.
+The .so file compiled from C++ for python will be generated in "connect4_3d_ai/build/".
 
+## Some dependencies may need to be installed
 ```shell
 pip install pytest
 pip install pybind11
@@ -19,7 +27,7 @@ pybind11
 - [ ] Multi-threads/processes??? 
 
 ## Print board
-![](./img/Figure_1.png)
+![](data/img/Figure_1.png)
 Instructions:
 1. Call the c++ function to output board content.
    ```c++

@@ -11,10 +11,11 @@
 #include <cmath>
 #include <array>
 
+typedef std::array<std::array<std::array<int, 6>, 6>, 6> array3d_int;
+
 class Node : public std::enable_shared_from_this<Node> {
 public:
-    std::array<std::array<std::array<int , 6>,6>,6> board;
-    // int board[6][6][6]{};
+    array3d_int board{};
     int hands;
     Movement move;
     int visiting_count;
@@ -26,16 +27,12 @@ public:
     Properties my_properties;
     std::weak_ptr<Node> parent;
 
-    static Properties get_state_properties_b(int start_state[6][6][6],
-                                             Properties start_state_properties,
+    static Properties get_state_properties_b(array3d_int start_state, Properties start_state_properties,
                                              const std::vector<Movement> &movements);
 
     static bool boundary_test(const std::shared_ptr<int[]> &coordinate);
 
-    // Node(int board[6][6][6], int hands, Movement move, Properties my_properties);
-    Node(int board[6][6][6], int hands, Movement move, Properties my_properties);
-
-    // Node(const std::shared_ptr<int[]>& board, int hands, Movement move, Properties my_properties);
+    Node(array3d_int board, int hands, Movement move, Properties my_properties);
 
     ~Node();
 
@@ -57,7 +54,7 @@ public:
 
     std::vector<Movement> gen_block_move();
 
-    std::shared_ptr<Node> get_node_after_playing(Movement next_move);
+    std::shared_ptr<Node> get_node_after_playing(Movement next_move) const;
 
     void output_board_string_for_plot_state();
 

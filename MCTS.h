@@ -20,11 +20,12 @@ private:
 
 public:
     std::shared_ptr<Node> root;
-    int cur_simulation_cnt;
-    int max_simulation_cnt;
-    double max_time_sec;
-    bool print_simulation_cnt;
+    int cur_simulation_cnt{};
+    int max_simulation_cnt{};
+    double max_time_sec{};
+    bool print_simulation_cnt{};
 
+    MCTS()= default;
     MCTS(std::shared_ptr<Node> root, int max_simulation_cnt, double max_time_sec, bool print_simulation_cnt);
 
     static Movement get_rand_first_hand_center_move(bool random);

@@ -6,6 +6,7 @@
 
 typedef std::chrono::high_resolution_clock Time;
 typedef std::chrono::duration<double> sec;
+typedef std::array<std::array<std::array<int, 6>, 6>, 6> array3d_int;
 
 
 std::vector<std::vector<float>> MCTS::first_layer_stat(int mode, const std::string &output_filename_suffix) {
@@ -110,7 +111,6 @@ Movement MCTS::run(bool playout_use_block_move,
     // clock_t start = clock();
     auto start = Time::now();
     while (true) {
-        auto end = Time::now();
         sec duration = Time::now() - start;
         if (duration.count() >= (double) (this->max_time_sec))
             break;
@@ -202,7 +202,6 @@ Movement MCTS::run(bool playout_use_block_move,
     if (!root_has_dominant_move && this->root->is_terminated) {
         std::shared_ptr<Node> new_root = std::make_shared<Node>(this->root->board, this->root->hands, this->root->move,
                                                                 this->root->my_properties);
-        auto end = Time::now();
         sec duration = Time::now() - start;
         std::cout << "Has used " << duration.count() << " sec" << std::endl;
         double rest_of_time = ((double) (this->max_time_sec) - duration.count());
@@ -243,7 +242,7 @@ Movement MCTS::run(bool playout_use_block_move,
 }
 
 std::shared_ptr<Node> MCTS::get_init_node() {
-    int b[6][6][6];
+    array3d_int b;
     for (auto &i : b) {
         for (auto &j : i) {
             for (int &k : j) {

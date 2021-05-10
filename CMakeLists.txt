@@ -12,9 +12,9 @@ add_subdirectory(pybind11)
 
 #include_directories(include ${Eigen_INCLUDE_DIRS})
 
-pybind11_add_module(example
+
+pybind11_add_module(connect4_3d_ai_engine
         module.cpp
-        mcts.cpp
         Movement.h
         Movement.cpp
         Movement.h
@@ -31,7 +31,6 @@ pybind11_add_module(example
 
 
 add_executable(MasterTheGameOfConnect4
-        mcts.cpp
         Movement.h
         Movement.cpp
         Movement.h

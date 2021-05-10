@@ -1,12 +1,84 @@
-//
-// Created by smallfish on 5/10/21.
-//
-
 #include "Node.h"
 #include "Engine.h"
+typedef std::array<std::array<std::array<int , 6>,6>,6> array3d_int;
 
 
-bool Node::boundary_test(const std::unique_ptr<int[]> &coordinate) {
+Properties Node::get_state_properties_b(array3d_int start_state,
+                                        Properties start_state_properties,
+                                        const std::vector<Movement> &movements) {
+    int dirs[13][3] = {
+            {0,  0,  1},
+            {0,  1,  0},
+            {1,  0,  0},
+            {0,  1,  1},
+            {1,  0,  1},
+            {1,  1,  0},
+            {0,  1,  -1},
+            {1,  0,  -1},
+            {1,  -1, 0},
+            {1,  1,  1},
+            {1,  1,  -1},
+            {1,  -1, 1},
+            {-1, 1,  1}
+    };
+    array3d_int temp_state = start_state;
+    Properties temp_properties;
+    temp_properties.black_points = start_state_properties.black_points;
+    temp_properties.white_points = start_state_properties.white_points;
+    temp_properties.black_lines = start_state_properties.black_lines;
+    temp_properties.white_lines = start_state_properties.white_lines;
+
+
+    for (auto &movement : movements) {
+        int l = movement.l;
+        int i = movement.x;
+        int j = movement.y;
+        int c = movement.color;
+        for (auto &dir : dirs) {
+            int cnt = 1;
+            for (int mul = 1; mul <= 3; mul++) {
+                std::shared_ptr<int[]> temp_coordinate(new int[3]);
+                temp_coordinate[0] = l + dir[0] * mul;
+                temp_coordinate[1] = i + dir[1] * mul;
+                temp_coordinate[2] = j + dir[2] * mul;
+                if (!boundary_test(temp_coordinate))
+                    break;
+                if (temp_state[temp_coordinate[0]][temp_coordinate[1]][temp_coordinate[2]] != c)
+                    break;
+                cnt += 1;
+            }
+            for (int mul = 1; mul <= 3; mul++) {
+                std::shared_ptr<int[]> temp_coordinate(new int[3]);
+                temp_coordinate[0] = l + dir[0] * -mul;
+                temp_coordinate[1] = i + dir[1] * -mul;
+                temp_coordinate[2] = j + dir[2] * -mul;
+                if (!boundary_test(temp_coordinate))
+                    break;
+                if (temp_state[temp_coordinate[0]][temp_coordinate[1]][temp_coordinate[2]] != c)
+                    break;
+                cnt += 1;
+            }
+            //cout << cnt << endl;
+            while (cnt >= 4) {
+                if (c == 1) {
+                    temp_properties.black_lines += 1;
+                    temp_properties.black_points +=
+                            100 / (temp_properties.black_lines + temp_properties.white_lines);
+                } else {
+                    temp_properties.white_lines += 1;
+                    temp_properties.white_points +=
+                            100 / (temp_properties.black_lines + temp_properties.white_lines);
+                }
+                cnt -= 1;
+            }
+        }
+        temp_state[l][i][j] = c;
+    }
+    return temp_properties;
+}
+
+
+bool Node::boundary_test(const std::shared_ptr<int[]> &coordinate) {
     for (int i = 0; i < 3; i++)
         if (coordinate[i] < 0 || coordinate[i] >= 6)
             return false;
@@ -14,18 +86,11 @@ bool Node::boundary_test(const std::unique_ptr<int[]> &coordinate) {
 }
 
 
-Node::Node(int board[6][6][6],
+Node::Node(array3d_int board,
            int hands,
            Movement move,
            Properties my_properties) {
-
-    for (int i = 0; i < 6; i++) {
-        for (int j = 0; j < 6; j++) {
-            for (int k = 0; k < 6; k++) {
-                this->board[i][j][k] = board[i][j][k];
-            }
-        }
-    }
+    this->board = board;
     this->hands = hands;
     this->move = move;
     this->my_properties = my_properties;
@@ -127,7 +192,6 @@ std::shared_ptr<Node> Node::select(bool prior_value) {
 
 int Node::expand(bool dominant_pruning, bool prior_value, bool not_check_dominant_on_first_layer) {
     this->is_leaf = false;
-    int temp_board[6][6][6];
     std::vector<Movement> legal_moves;
     if (prior_value) {
         legal_moves = this->gen_block_move();
@@ -143,17 +207,10 @@ int Node::expand(bool dominant_pruning, bool prior_value, bool not_check_dominan
         parent_node_is_root = parent_shared_ptr->is_root;
     }
 
-    for (int legal_move_idx = 0; legal_move_idx < legal_moves.size(); legal_move_idx++) {
+    for (int legal_move_idx = 0; legal_move_idx <(int) legal_moves.size(); legal_move_idx++) {
         Movement legal_move = legal_moves[legal_move_idx];
-        for (int i = 0; i < 6; i++) {
-            for (int j = 0; j < 6; j++) {
-                for (int k = 0; k < 6; k++) {
-                    temp_board[i][j][k] = this->board[i][j][k];
-                }
-            }
-        }
-        Movement temp_move;
-        temp_move = legal_move;
+        array3d_int temp_board = this->board;
+        Movement temp_move = legal_move;
         int color = this->hands % 2 == 0 ? 1 : 2;
 
         temp_move.color = color;
@@ -209,7 +266,7 @@ int Node::expand(bool dominant_pruning, bool prior_value, bool not_check_dominan
                     }
                     // Remove this child from parent
                     int idx = 0;
-                    for (; idx < parent_shared_ptr->children.size(); idx++) { // Find where this child is
+                    for (; idx < (int)parent_shared_ptr->children.size(); idx++) { // Find where this child is
                         if (parent_shared_ptr->children[idx]->move.x == this->move.x &&
                             parent_shared_ptr->children[idx]->move.y == this->move.y &&
                             parent_shared_ptr->children[idx]->move.l == this->move.l) {
@@ -246,7 +303,7 @@ int Node::expand(bool dominant_pruning, bool prior_value, bool not_check_dominan
 }
 
 int Node::playout(bool use_block_moves) {
-    int temp_board[6][6][6];
+    array3d_int  temp_board;
     for (int i = 0; i < 6; i++) {
         for (int j = 0; j < 6; j++) {
             for (int k = 0; k < 6; k++) {
@@ -385,7 +442,7 @@ std::vector<Movement> Node::get_next_possible_move() {
 }
 
 std::vector<Movement> Node::gen_block_move() {
-    int temp_state[6][6][6];
+    array3d_int temp_state;
     for (int l = 0; l < 6; l++) {
         for (int i = 0; i < 6; i++) {
             for (int j = 0; j < 6; j++) {
@@ -433,7 +490,7 @@ std::vector<Movement> Node::gen_block_move() {
         flag = true;
         flag2 = true;
         for (auto &dir : dirs) {
-            std::unique_ptr<int[]> new_pos(new int[3]);
+            std::shared_ptr<int[]> new_pos(new int[3]);
             new_pos[0] = all_possible_move.l + dir[0];
             new_pos[1] = all_possible_move.x + dir[1];
             new_pos[2] = all_possible_move.y + dir[2];
@@ -475,7 +532,7 @@ std::vector<Movement> Node::gen_block_move() {
         for (auto &dir2 : dirs2) {
             int cnt = 1;
             for (int mul = 1; mul <= 2; mul++) {
-                std::unique_ptr<int[]> new_pos(new int[3]);
+                std::shared_ptr<int[]> new_pos(new int[3]);
                 new_pos[0] = l + dir2[0] * mul;
                 new_pos[1] = i + dir2[1] * mul;
                 new_pos[2] = j + dir2[2] * mul;
@@ -486,7 +543,7 @@ std::vector<Movement> Node::gen_block_move() {
                 cnt += 1;
             }
             for (int mul = 1; mul <= 2; mul++) {
-                std::unique_ptr<int[]> new_pos(new int[3]);
+                std::shared_ptr<int[]> new_pos(new int[3]);
                 new_pos[0] = l + dir2[0] * -mul;
                 new_pos[1] = i + dir2[1] * -mul;
                 new_pos[2] = j + dir2[2] * -mul;
@@ -526,15 +583,8 @@ std::vector<Movement> Node::gen_block_move() {
     return block_moves;
 }
 
-std::shared_ptr<Node> Node::get_node_after_playing(Movement next_move) {
-    int temp_board[6][6][6];
-    for (int i = 0; i < 6; i++) {
-        for (int j = 0; j < 6; j++) {
-            for (int k = 0; k < 6; k++) {
-                temp_board[i][j][k] = this->board[i][j][k];
-            }
-        }
-    }
+std::shared_ptr<Node> Node::get_node_after_playing(Movement next_move) const {
+    array3d_int temp_board = this->board;
     int color = (hands % 2 == 0) ? 1 : 2;
     next_move.color = color;
     std::vector<Movement> movements;
@@ -574,3 +624,5 @@ void Node::print_flattened_board() {
     }
     std::cout << std::endl;
 }
+
+

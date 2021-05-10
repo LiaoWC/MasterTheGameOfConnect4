@@ -5,8 +5,8 @@ set(CMAKE_CXX_STANDARD 14)
 
 # Set the output folder where your program will be created
 # Reference: https://stackoverflow.com/questions/52022717/how-to-make-cmake-output-to-the-build-directory/52024730
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/connect4_3d_ai/build)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/connect4_3d_ai/build)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/connect4_3d_ai/)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/connect4_3d_ai/)
 
 add_compile_options(-Wall)
 

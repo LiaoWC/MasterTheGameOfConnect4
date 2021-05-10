@@ -11,8 +11,6 @@ make
 This project's executable file will be generated in this project's root directory.
 The .so file compiled from C++ for python will be generated in "connect4_3d_ai/".
 
-
-
 ## Some dependencies may need to be installed
 ```shell
 pip install pytest
@@ -27,6 +25,16 @@ sudo ln -s /usr/include/eigen3/Eigen /usr/include/Eigen
 cmake
 pytest
 pybind11
+
+## Use MCTS from Python
+![](data/img/python_demo_1.png)
+![](data/img/python_demo_2.png)
+
+
+```python
+import connect4_3d_ai_engine
+```
+
 
 
 ## TODO / Direction?

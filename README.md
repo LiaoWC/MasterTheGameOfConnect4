@@ -8,7 +8,7 @@
 - [Other tools](#Other-Tools)
 - [Todos](#Todos)
 
-<img alt="board-example" src="data/img/Figure_2_simulateOnly32Hands.png" width="250">
+![board-example](data/img/board_0.png)
 
 ## Introduction to our AI
 
@@ -201,6 +201,7 @@ Yellow is white-player.
 
 ## Todos
 
+- [ ] Pack up Python and so file.
 - [ ] Add problem settings.
 - [ ] Print board in Python.
 - [ ] Check latex on GitHub readme.

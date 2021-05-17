@@ -1,4 +1,4 @@
-# 
+# Master the Game of Connect Four 3D
 ## Install & Re-compile
 ```shell
 # First time
@@ -89,3 +89,8 @@ int main() {
     return EXIT_SUCCESS;
 }
 ```
+
+## Todos
+- [ ] Integrate neural network with C++ version.
+- [ ] Multi-process to run MCTS and inference with a batch.
+- [ ] The config file seems useless in self-playing dir. Integrate it with others.

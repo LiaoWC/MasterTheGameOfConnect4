@@ -3,7 +3,7 @@ import random
 import math
 import time
 from numpy.typing import ArrayLike
-from typing import List, Sequence, Tuple, Optional, Union
+from typing import List, Tuple, Union
 from copy import deepcopy
 import torch
 from abc import ABC
@@ -40,9 +40,9 @@ def get_next_possible_move(state):
         for j in range(6):
             if state[5][i][j] != 0:
                 continue
-            for l in range(6):
-                if state[l][i][j] == 0:
-                    possible_moves.append([l, i, j])
+            for ll in range(6):
+                if state[ll][i][j] == 0:
+                    possible_moves.append([ll, i, j])
                     break
     ret = np.array(possible_moves)
     return ret
@@ -91,13 +91,12 @@ def get_state_properties_b(start_state, start_state_properties, movements):
     temp_state = start_state
     temp_properties = start_state_properties
     for move in movements:
-        possible_dir = []
         l, i, j, c = move[0], move[1], move[2], move[3]
-        for dir in dirs:
+        for direction in dirs:
             muls = np.arange(1, 4)
             cnt = 1
             for mul in muls:
-                temp_coordinate = np.add(move[0:3], np.multiply(dir, mul))
+                temp_coordinate = np.add(move[0:3], np.multiply(direction, mul))
                 if not boundary_test(temp_coordinate):
                     break
                 temp_l, temp_i, temp_j = \
@@ -106,7 +105,7 @@ def get_state_properties_b(start_state, start_state_properties, movements):
                     break
                 cnt += 1
             for mul in muls:
-                temp_coordinate = np.add(move[0:3], np.multiply(dir, -mul))
+                temp_coordinate = np.add(move[0:3], np.multiply(direction, -mul))
                 if not boundary_test(temp_coordinate):
                     break
                 temp_l, temp_i, temp_j = \
@@ -127,7 +126,7 @@ def get_state_properties_b(start_state, start_state_properties, movements):
 def bool3d_to_onezero3d(arr: "np.ndarray") -> "np.ndarray":
     a, b, c = arr.shape  # a, b, c are three dimensions
     assert (a, b, c) == State.STATE_SHAPE
-    result = np.zeros(a * b * c).reshape(a, b, c)
+    result = np.zeros(a * b * c).reshape((a, b, c))
     for i in range(a):
         for j in range(b):
             for k in range(c):
@@ -137,9 +136,10 @@ def bool3d_to_onezero3d(arr: "np.ndarray") -> "np.ndarray":
 
 
 class EvalFunc:
-    # TODO: Ensure all eval function's all the input is one that has been deep-copied
     """
-    # TODO: Ensure all eval function's input are in the same format: board, properties, hands, **kwargs.
+    Notes:
+    - Ensure all eval function's all the input is one that has been deep-copied
+    - Ensure all eval function's input are in the same format: board, properties, hands, **kwargs.
     """
 
     @staticmethod
@@ -195,9 +195,6 @@ class EvalFunc:
         p = p.cpu().numpy()[0]
         v = v.cpu().tolist()[0][0]
         return p, v
-
-
-# TODO: Batch size > 1 when inference?
 
 
 class NODE:
@@ -548,7 +545,7 @@ class MCTS:
         return NODE(np1, 0, None, start_properties)
 
 
-class BasicBlock(nn.Module, ABC):
+class Block(nn.Module, ABC):
     def __init__(self, in_channels, out_channels):
         super().__init__()
         self.conv1 = nn.Conv3d(in_channels,
@@ -590,8 +587,8 @@ class ResNet(nn.Module, ABC):
             nn.ReLU(),
         )
         self.convs = nn.ModuleList([
-            BasicBlock(in_channels=out_channels,
-                       out_channels=out_channels) for _ in range(blocks)
+            Block(in_channels=out_channels,
+                  out_channels=out_channels) for _ in range(blocks)
         ])
 
     def forward(self, x):
@@ -642,7 +639,6 @@ class NN3DConnect4(nn.Module, ABC):
                       out_features=self.num_distinct_actions),
             nn.Softmax(dim=1)
         )
-        # TODO: filter the illegal move and re-normalize the probabilities
 
         # Value head
         self.value_head_front = nn.Sequential(

@@ -1,9 +1,10 @@
 # Master the Game of Connect Four 3D
 
-
-
-
-
+Outline:
+- [Introduction](#Introduction to our AI)
+- [Methods](#method)
+- [Conclusion](#Conclusion)
+- [Install](#Install)
 
 ## Introduction to our AI
 
@@ -92,7 +93,8 @@ MCTS converges to Minimax result for infinite runs. We can help it recognize a n
 
 
 
-## Install & Re-compile
+## Install
+##& Re-compile
 
 ```shell
 # First time

@@ -1,10 +1,5 @@
 # Master the Game of Connect Four 3D
 
-
-
-
-
-
 ## Introduction to our AI
 
 We designed an MCTS-based AI with dominant pruning. It is basically standard MCTS, but we do something a little different which will be described later to get better result. The followings are what our AI do in the four phases for MCTS.
@@ -42,11 +37,11 @@ We find using neural network as a evaluation function on CPU works. It receives 
 
 Ordinary UCB function is
 ![](data/img/method_4.png), 
-where $w$  is value sum, $n$  is child visit count, $N$ is parent visit count, and $c$ is a constant.
+where w is value sum, n is child visit count, N is parent visit count, and c is a constant.
 
 PUCT is **P**redictor + **UC**B applied to **t**rees. We design a new formula using *connect and block prior* (detailed will be discussed in next part) as a predictor. The formula is
 ![](data/img/method_5.png), 
-where the $w$, $n$, $N$ has the same meaning as UCB, p is the prior gotten from *connect and block prior*, and $c$ is a constant which we pick 1.414.
+where the w, n, N has the same meaning as UCB, p is the prior gotten from *connect and block prior*, and c is a constant which we pick 1.414.
 
 We regard the predicator as an improvement of exploration, that is we can explore the node which we think is better earlier and more.  How the predicator is calculated is introduced in method 3.
 
@@ -54,13 +49,13 @@ We regard the predicator as an improvement of exploration, that is we can explor
 
 We design a simple way to evaluate the prior of each move and use it in PUCT in order to explore the node which we think is better earlier and more. While dominant pruning (detailed is in part 4) deals with the case when there will be connected-4 on the board after the move, connect and block prior deal with the case when there will be connected-3 on the board after the move.
 
-If the move can generate a connected-3, it can get base $c \times 2$ points to its prior (The base $c$ here is a hyper-parameter for controlling the weight of connect and block prior). If the move can prevent opponent from getting live-connected-3 (can connect a 4-stone-line in two ends), it can get base $c$ points to its prior. Take the picture down below as an example, white should go next. Consider the move $(2, 0)$, there will be white connect-3, so the move $(2, 0)$ has prior $2c$.  Then consider the move $(1, 1)$, it can prevent black get life connected-3 in the direction, so the move $(1,1)$ has prior $c$.
+If the move can generate a connected-3, it can get base c\*2 points to its prior (The base c here is a hyper-parameter for controlling the weight of connect and block prior). If the move can prevent opponent from getting live-connected-3 (can connect a 4-stone-line in two ends), it can get base c points to its prior. Take the picture down below as an example, white should go next. Consider the move (2, 0), there will be white connect-3, so the move (2, 0) has prior 2c.  Then consider the move (1, 1), it can prevent black get life connected-3 in the direction, so the move (1,1) has prior c.
 
 <img alt="" src="data/img/method_6.png" width="200">
 
 ### 4. Dominant Pruning
 
-The formula for calculating scores is $\lfloor{\frac{100}{k}}\rfloor$, where k is the line's connecting order. From our observation, those player who connect a line first usually has better performance in a game. Thus, we view the move that lead to connect a line as a ***dominant*** move. In contrast to a dominant move, we call a dominant move's parent move a ***dominated*** move.
+The formula for calculating scores is <img alt="" src="https://latex.codecogs.com/svg.latex?\lfloor{\frac{100}{k}}\rfloor">, where k is the line's connecting order. From our observation, those player who connect a line first usually has better performance in a game. Thus, we view the move that lead to connect a line as a ***dominant*** move. In contrast to a dominant move, we call a dominant move's parent move a ***dominated*** move.
 
 A dominant's move's parent move is opponent's move. Use induction we know that if a move is dominant, then its opponent won't play the parent move. Therefore, its reasonable to prune the parent move since the opponent will tend not to play there if it's national. By doing *dominant pruning*, we can decrease unimportant subtrees and better the efficiency of MCTS. Most important is that if we do dominant pruning when expanding root node and root's child nodes, it prevents the AI from not blocking opponent's connecting opportunity, and it ensure the AI will not miss the chance to connect a line.
 

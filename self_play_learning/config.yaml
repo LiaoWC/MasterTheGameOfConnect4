@@ -1,6 +1,6 @@
 path:
   models_dir: "models/"
-  not_trained_trajectories: "not_trained_trajectories/"
+  not_trained_trajectories: "trajectories/"
   trained_trajectories: "trained_trajectories/"
 
 model:

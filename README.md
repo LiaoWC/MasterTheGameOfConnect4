@@ -13,7 +13,7 @@
 
 ## Game Rules
 
-- Board: Unlike ordinary 3D Connect Four, the board is added 8 more cells. [(Example board image refer to this)](https://github.com/LiaoWC/MasterTheGameOfConnect4/blob/main/data/img/method_6.png) Total number of cells is 24. Pieces can be stacked in a cell but the maximum number in a cell is 6 (ordinary one is 4).
+- Board: Unlike ordinary 3D Connect Four, the board is added 8 more cells. [(Example board image refer to this. In this image, gray is the legal next movement, blue is black-player, yellow is white-player.)](https://github.com/LiaoWC/MasterTheGameOfConnect4/blob/main/data/img/Figure_1.png) Total number of cells is 24. Pieces can be stacked in a cell but the maximum number in a cell is 6 (ordinary one is 4).
 - Objective: Get more scores than your opponent. Form four-in-a-lines to win scores.
 - Score calculation: Four-in-a-lines can be along any direction, and they can have shared pieces. Everytime you accomplish a four-in-a-line, you get <img alt="" src="https://latex.codecogs.com/svg.latex?\lfloor{\frac{100}{k}}\rfloor"> scores. "k" means the line is the k-th line to appear.
 - In each move, a player selects one cell that is not full yet (<6) to place a game piece in. The new piece will be at the top of the stack in that cell.

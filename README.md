@@ -1,6 +1,7 @@
 # Master the Game of Connect Four 3D
 
-- [Introduction](#Introduction-to-our-AI)
+- [Game Rules](#Game-Rules)
+- [Introduction to Our AI](#Introduction-to-Our-AI)
 - [Methods](#Methods)
 - [Conclusion](#Conclusion)
 - [Install](#Install)
@@ -10,7 +11,17 @@
 
 ![board-example](data/img/board_0.png)
 
-## Introduction to our AI
+## Game Rules
+
+- Board: Unlike ordinary 3D Connect Four, the board is added 8 more cells. [(Example board image refer to this)](https://github.com/LiaoWC/MasterTheGameOfConnect4/blob/main/data/img/method_6.png) Total number of cells is 24. Pieces can be stacked in a cell but the maximum number in a cell is 6 (ordinary one is 4).
+- Objective: Get more scores than your opponent. Form four-in-a-lines to win scores.
+- Score calculation: Four-in-a-lines can be along any direction, and they can have shared pieces. Everytime you accomplish a four-in-a-line, you get <img alt="" src="https://latex.codecogs.com/svg.latex?\lfloor{\frac{100}{k}}\rfloor"> scores. "k" means the line is the k-th line to appear.
+- In each move, a player selects one cell that is not full yet (<6) to place a game piece in. The new piece will be at the top of the stack in that cell.
+- Each player has 32 game pieces. The depth of the game is 64 moves in total.
+
+*Game rule description is modified from the project spec of the course "AI Capstone" in NYCU.
+
+## Introduction to Our AI
 
 We designed an MCTS-based AI with dominant pruning. It is basically standard MCTS, but we do something a little
 different which will be described later to get better result. The followings are what our AI do in the four phases for

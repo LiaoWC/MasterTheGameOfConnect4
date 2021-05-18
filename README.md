@@ -212,6 +212,8 @@ Yellow is white-player.
 
 ## Todos
 
+### Tasks
+
 - [ ] Pack up Python and so file.
 - [ ] Add problem settings.
 - [ ] Print board in Python.
@@ -219,4 +221,11 @@ Yellow is white-player.
 - [ ] Integrate neural network with C++ version.
 - [ ] Multi-process to run MCTS and inference with a batch.
 - [ ] The config file seems useless in self-playing dir. Integrate it with others.
+
+### Research
+
 - [ ] Is it a good idea to let second hand play at the center?
+
+### Bugs
+
+- [ ] Python MCTS backup or select may contain bug. (UCB should add negative sign!?)

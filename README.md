@@ -219,3 +219,4 @@ Yellow is white-player.
 - [ ] Integrate neural network with C++ version.
 - [ ] Multi-process to run MCTS and inference with a batch.
 - [ ] The config file seems useless in self-playing dir. Integrate it with others.
+- [ ] Is it a good idea to let second hand play at the center?
